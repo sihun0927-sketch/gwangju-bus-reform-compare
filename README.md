@@ -4,16 +4,13 @@
 탭 둘: **장소로 찾기**(출발·도착 장소를 넣으면 개편 전후 경로를 비교)와
 **노선번호로 찾기**(번호를 넣으면 대체 노선과 정류장 변화를 보여 줌).
 
-이 리포는 목업 리포([sihun0927-sketch/Hacker_AI](https://github.com/sihun0927-sketch/Hacker_AI))에서
-**화면 배치와 용어만 가져오고 내부 구현은 새로 시작**한다. 목업은 Next.js 정적 내보내기(브라우저가
-1.3MB JSON을 받아 스스로 계산)였고, 이 리포는 **정적 HTML + htmx 조각**이다. 그 이유와 부품별
-역할은 `docs/architecture.md`에 있다.
+구조는 **정적 HTML + htmx 조각**이다. 이유와 부품별 역할은 `docs/architecture.md`에 있다.
 
 ## 새로 합류했다면 이 순서로 읽는다
 
 1. `CONTEXT.md` — 용어. 방면·대체 노선·조각·그대로/안 옴/새로 같은 말의 뜻
 2. `docs/architecture.md` — 구조와 부품 역할, 두 탭의 정적/동적 분할, 데이터 흐름, 결정 요약
-3. `docs/adr/` — 되돌리기 어려운 결정 넷과 그 이유
+3. `docs/adr/` — 되돌리기 어려운 결정 다섯과 그 이유
 4. `data/README.md` — 원천 CSV 6개의 열과 행 수, 알아 둘 함정
 5. 설계 캔버스 — https://claude.ai/code/artifact/fbf89d71-17a6-4f49-b963-aa3eb506b539
    (페이지 4장: 장소 탭 분할 · 노선번호 탭 분할 · 정류장 변화 표 v2 · 조각 출처 a vs b)
