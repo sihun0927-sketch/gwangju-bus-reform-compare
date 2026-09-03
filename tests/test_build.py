@@ -26,6 +26,10 @@ ALIGN_TABLE = DATA / "기종점정렬표.csv"
 순환01 = ("순환01", "기본", "간선01", "기본.html")
 선운101 = ("선운101", "빛그린산단", "지선97", "빛그린산단출근.html")
 두암81 = ("두암81", "각화초교.장등동", "지선81", "기본.html")
+노선1187 = ("1187", "기본", "1187", "기본.html")
+문흥80 = ("문흥80", "기본", "간선80", "기본.html")
+송정93 = ("송정93", "기본", "지선93", "기본.html")
+운림54 = ("운림54", "기본", "간선54", "기본.html")
 
 
 @pytest.fixture(scope="session")
@@ -38,6 +42,16 @@ def site(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def fragment(site: Path, parts: tuple[str, ...]) -> str:
     return (site / "route" / Path(*parts)).read_text(encoding="utf-8")
+
+
+def notes(site: Path) -> list[tuple[Path, str]]:
+    """모든 조각의 비고 칸을 (파일, 적힌 말)로 모은다."""
+    칸 = re.compile(r'<td class="note"[^>]*>([^<]*)</td>')
+    return [
+        (path, 비고)
+        for path in site.rglob("*.html")
+        for 비고 in 칸.findall(path.read_text(encoding="utf-8"))
+    ]
 
 
 def rows(html: str) -> list[str]:
@@ -77,7 +91,9 @@ def test_상행_하행_요약_칸_여섯(site: Path) -> None:
     for 문구 in ("상행 · 유지", "상행 · 경유 제외", "상행 · 경유 추가",
                  "하행 · 유지", "하행 · 경유 제외", "하행 · 경유 추가"):
         assert 문구 in html
-    for 개수 in ("47곳", "11곳", "5곳", "50곳", "12곳", "6곳"):
+    # 명칭 사전을 적용해 손으로 센 값 — 상행 개편 전 58곳 = 유지 49 + 경유 제외 9,
+    # 개편 후(뒤집어 맞댄 간선18 하행) 52곳 = 49 + 경유 추가 3. 하행은 62 = 52 + 10, 56 = 52 + 4
+    for 개수 in ("49곳", "9곳", "3곳", "52곳", "10곳", "4곳"):
         assert 개수 in html
 
 
@@ -103,8 +119,68 @@ def test_열_머리_여섯(site: Path) -> None:
 
 def test_개편_전에만_있는_줄과_개편_후에만_있는_줄이_다른_class다(site: Path) -> None:
     html = fragment(site, 문흥18)
-    assert '<td class="dropped">문흥고가</td><td class="dropped"></td>' in html
-    assert '<td class="added"></td><td class="added">문화육교</td>' in html
+    # 현대위아는 새 이름(모비언트)이 간선18에 없어 진짜 경유 제외다. 전남대동문은 개편 후에만 있다
+    assert '<td class="dropped">현대위아</td><td class="dropped"></td>' in html
+    assert '<td class="added"></td><td class="added">전남대동문</td>' in html
+
+
+def test_이름만_바뀐_정류장은_한_줄_유지이고_비고에_명칭_변경(site: Path) -> None:
+    """ADR-0003 결정 2. 두 줄로 갈라 두면 개편을 실제보다 나쁘게 보여 준다."""
+    html = fragment(site, 문흥18)
+    assert '<td class="kept">문흥고가</td><td class="kept">문화육교</td>' in html
+    assert "명칭 변경: 문흥고가 → 문화육교" in html
+
+
+def test_옛_이름_하나가_새_이름_여럿이어도_어느_쪽과_만나든_유지다(site: Path) -> None:
+    """법원입구는 방향별로 1번출구·2번출구로 갈라진다(ADR-0003 결정 2). 한쪽만 잡으면 나머지가
+    경유 제외로 보인다. 1187은 두 새 이름이 개편 후 노선안에 다 있는 노선이다."""
+    html = fragment(site, 노선1187)
+    assert "명칭 변경: 법원입구 → 광주법원검찰역1번출구" in html
+    assert "명칭 변경: 법원입구 → 광주법원검찰역2번출구" in html
+
+
+def test_통폐합이전_CSV의_정류장은_구분_값만_보이고_사유는_title이다(site: Path) -> None:
+    """ADR-0003 2026-09-03 개정 — 사유 문장까지 칸에 적으면 표가 어수선하다."""
+    폐지 = fragment(site, 문흥80)
+    assert '<td class="dropped">충장로5가입구</td>' in 폐지
+    assert '">폐지</td>' in 폐지
+    assert 'title="이번 노선개편에서 해당 정류소에 노선이 경유하지 않습니다.' in 폐지
+    assert ">이번 노선개편에서" not in 폐지   # 사유는 칸에 안 적힌다
+
+    이전 = fragment(site, 송정93)
+    assert '<td class="dropped">옥동차량기지</td>' in 이전
+    assert 'title="평동산단방향 광산생활환경종합센터(약100m)로 이전합니다."' in 이전
+    assert '">이전</td>' in 이전
+    assert ">평동산단방향" not in 이전
+
+
+def test_신설_CSV의_정류장은_개편_후에만_있는_줄에_적힌다(site: Path) -> None:
+    html = fragment(site, 문흥80)
+    assert '<td class="added"></td><td class="added">백운광장역2번출구</td>' in html
+    assert ">신설 정류소</td>" in html
+
+
+def test_비고에_상태_문구는_적지_않는다(site: Path) -> None:
+    """상태는 줄 색과 요약 칸이 말한다 (ADR-0003 2026-09-03 개정). 205개 표 전수."""
+    for path, 비고 in notes(site):
+        assert not any(말 in 비고 for 말 in ("유지", "경유 제외", "경유 추가")), path
+
+
+def test_CSV_이름이_노선안과_안_맞으면_비고를_못_붙이고_빌드는_성공한다(site: Path) -> None:
+    """통폐합 CSV는 흡수된 정류장을 「오치한전(오치한전(북))」으로 적어 노선안 이름과 안 맞는다.
+    짐작으로 붙이지 않고 비운다 (티켓 1 Further Notes). 넷 다 이 꼴이라 「통폐합」 비고는 0건이다."""
+    html = fragment(site, 운림54)
+    줄 = next(r for r in rows(html) if ">오치한전(북)<" in r)
+    assert '<td class="dropped">오치한전(북)</td>' in 줄
+    assert "통폐합" not in 줄
+
+
+def test_한_줄에_사실이_둘이면_이어_적는다(site: Path) -> None:
+    """줄 하나에 상행 칸과 하행 칸이 같이 있어 사실이 겹칠 수 있다. 어느 줄에서 겹치는지는 대조
+    결과라 노선을 못 박지 않고, 두 사실이 " · "로 이어진 칸이 있는지만 본다."""
+    겹친_칸 = [비고 for _, 비고 in notes(site) if 비고.count("명칭 변경: ") == 2]
+    assert 겹친_칸, "두 사실이 한 칸에 모인 줄이 하나도 없다 — 잇지 않고 덮어썼을 수 있다"
+    assert all(" · " in 비고 for 비고 in 겹친_칸)
 
 
 def test_출처_줄(site: Path) -> None:
@@ -195,6 +271,22 @@ def test_같은_쌍이_정렬표에_두_번_적히면_멈춘다(tmp_path: Path) 
     끝 = run_cli(data, tmp_path / "out")
     assert 끝.returncode == 1
     assert "두 번" in 끝.stderr
+
+
+def test_같은_정류장의_통폐합_행이_서로_다른_말을_하면_멈춘다(tmp_path: Path) -> None:
+    """ID 단위라 같은 이름이 두 행인 것은 정상이지만, 구분이 갈리면 어느 쪽을 적을지 못 고른다."""
+    data = tmp_path / "data"
+    shutil.copytree(DATA, data)
+    표 = data / "source" / "통폐합이전정류소.csv"
+    줄 = 표.read_text(encoding="utf-8-sig").splitlines()
+    # 계림사거리는 ID가 둘이라 두 행이다. 그 중 한 행의 구분만 바꿔 서로 다른 말을 하게 만든다
+    바뀐 = [줄[0], 줄[1].replace(",통폐합,", ",폐지,"), *줄[2:]]
+    assert 바뀐[1] != 줄[1]
+    write_bom_csv(표, 바뀐)
+
+    끝 = run_cli(data, tmp_path / "out")
+    assert 끝.returncode == 1
+    assert "계림사거리(서방사거리육교)" in 끝.stderr
 
 
 def test_입력이_든_자리는_출력으로_받아도_지우지_않는다(tmp_path: Path) -> None:

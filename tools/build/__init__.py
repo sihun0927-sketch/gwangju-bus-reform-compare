@@ -1,7 +1,7 @@
 """빌드 스크립트 — CSV를 읽어 노선번호 탭의 정적 조각을 쓴다 (ADR-0002).
 
 배포 전에 한 번 돌린다. 진입점은 `build(source, out)` 하나이고, `out/`을 비우고 다시 쓴다.
-노선 변화 표의 규칙(번호 잇기 · 방면 · 기·종점 정렬 · 기·종점 정류장 대조 · 비고)은 전부 여기 산다.
+노선 변화 표의 규칙(번호 잇기 · 명칭 사전 · 방면 · 기·종점 정렬 · 기·종점 정류장 대조 · 비고)은 전부 여기 산다.
 
     python -m tools.build                    # data/source → out/
     python -m tools.build data/source out    # 경로를 직접 줄 때
@@ -14,7 +14,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import branches, load, notes, render, stop_match, terminus_align
+from . import branches, load, notes, rename_dict, render, stop_match, terminus_align
 from .errors import BuildError
 
 __all__ = ["build", "BuildError", "Result"]
@@ -55,6 +55,8 @@ def build(source: Path, out: Path, *, align_table: Path | None = None) -> Result
     before = load.read_before(source)
     after = load.read_after(source)
     replacements = load.read_replacements(source)
+    renames = rename_dict.from_rows(load.read_renames(source))
+    facts = notes.collect(renames, load.read_removals(source), load.read_additions(source))
 
     pairs, missing = branches.pairs(before, after, replacements)
     if missing:
@@ -79,7 +81,7 @@ def build(source: Path, out: Path, *, align_table: Path | None = None) -> Result
     for pair in pairs:
         alignment = alignments[pair.key]
         stages[alignment.stage] = stages.get(alignment.stage, 0) + 1
-        _write_table(out, pair, alignment, before_siblings, after_siblings)
+        _write_table(out, pair, alignment, before_siblings, after_siblings, facts)
 
     return Result(out=out, tables=len(pairs), stages=stages)
 
@@ -90,18 +92,19 @@ def _write_table(
     alignment: terminus_align.Alignment,
     before_siblings: dict[str, list[load.Route]],
     after_siblings: dict[str, list[load.Route]],
+    facts: notes.Facts,
 ) -> None:
     flipped = bool(alignment.flipped)
     # 뒤집어 맞댄 표의 「개편 후 상행」 칸에는 CSV의 하행이 들어간다 — 개편 전 상행과 같은 방향이다
     after_up = pair.after.down if flipped else pair.after.up
     after_down = pair.after.up if flipped else pair.after.down
 
-    up = stop_match.match(pair.before.up, after_up)
+    up = stop_match.match(pair.before.up, after_up, facts.renames.canon)
     # 하행 칸을 채울지는 뒤집은 뒤의 목록으로 본다. 한쪽이 비면 두 칸을 비우고 비고가 까닭을 말한다
     has_down = bool(pair.before.down) and bool(after_down)
-    down = stop_match.match(pair.before.down, after_down) if has_down else []
+    down = stop_match.match(pair.before.down, after_down, facts.renames.canon) if has_down else []
 
-    note = notes.down_missing(
+    table_note = notes.down_missing(
         pair,
         before_siblings.get(pair.before.number, []),
         after_siblings.get(pair.after.number, []),
@@ -113,7 +116,7 @@ def _write_table(
         stop_match.summary(up),
         stop_match.summary(down),
         flipped=flipped,
-        note=note,
+        row_notes=notes.for_rows(up, down, facts, table_note=table_note),
     )
     number, branch, replacement, after_branch = pair.key
     path = out / "route" / number / branch / replacement / f"{after_branch}.html"
