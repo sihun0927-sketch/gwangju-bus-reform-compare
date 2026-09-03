@@ -3,11 +3,16 @@
 최장 공통 부분열로 짝을 짓고 줄마다 유지 / 경유 제외 / 경유 추가를 매긴다. 주어는 노선이다 —
 경유 제외는 정류장이 없어진 것이 아니라 이 노선이 더는 안 지난다는 뜻이다.
 
-명칭 사전은 아직 쓰지 않는다(다음 티켓). 지금은 이름이 글자 그대로 같아야 유지다.
+대조 전에 명칭 사전을 적용한다 — `canon`을 주면 그 이름으로 견주고, 표에는 CSV 이름을 그대로 싣는다.
+`canon` 없이 부르면 글자 그대로 견준다(기·종점 정렬의 겹침 재기가 그렇게 쓴다).
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+
+# 이름을 그대로 쓰는 기본 대조. 명칭 사전을 쓰려면 `rename_dict.RenameDict.canon`을 준다
+Canon = Callable[[str], str]
 
 KEPT = "유지"
 DROPPED = "경유 제외"
@@ -24,6 +29,10 @@ class Line:
     state: str
 
 
+def _keys(names: tuple[str, ...], canon: Canon | None) -> tuple[str, ...]:
+    return names if canon is None else tuple(canon(n) for n in names)
+
+
 def _table(x: tuple[str, ...], y: tuple[str, ...]) -> list[list[int]]:
     n, m = len(x), len(y)
     dp = [[0] * (m + 1) for _ in range(n + 1)]
@@ -33,18 +42,27 @@ def _table(x: tuple[str, ...], y: tuple[str, ...]) -> list[list[int]]:
     return dp
 
 
-def lcs_length(x: tuple[str, ...], y: tuple[str, ...]) -> int:
+def lcs_length(x: tuple[str, ...], y: tuple[str, ...], canon: Canon | None = None) -> int:
     """최장 공통 부분열 길이. 순서를 지키며 겹치는 정류장 수."""
-    return _table(x, y)[0][0]
+    return _table(_keys(x, canon), _keys(y, canon))[0][0]
 
 
-def match(before: tuple[str, ...], after: tuple[str, ...]) -> list[Line]:
-    """정류장 목록 둘 → 줄 목록. 짝이 없는 줄은 개편 전 것을 먼저 낸다(표에서 위에 온다)."""
-    dp = _table(before, after)
+def match(
+    before: tuple[str, ...],
+    after: tuple[str, ...],
+    canon: Canon | None = None,
+) -> list[Line]:
+    """정류장 목록 둘 → 줄 목록. 짝이 없는 줄은 개편 전 것을 먼저 낸다(표에서 위에 온다).
+
+    견주는 것은 `canon`을 거친 이름이고, `Line`에 담기는 것은 CSV에 적힌 이름 그대로다 —
+    그래서 이름만 바뀐 정류장이 한 줄 「유지」가 되면서도 표에는 옛 이름과 새 이름이 나란히 보인다.
+    """
+    x, y = _keys(before, canon), _keys(after, canon)
+    dp = _table(x, y)
     lines: list[Line] = []
     i = j = 0
     while i < len(before) and j < len(after):
-        if before[i] == after[j]:
+        if x[i] == y[j]:
             lines.append(Line(before[i], after[j], KEPT))
             i += 1
             j += 1
