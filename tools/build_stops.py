@@ -1,8 +1,9 @@
-"""api_stops.json에서 data/stops.csv와 data/name_canon.json을 만든다.
+"""data/back_up/api_stops.json에서 data/source/stops.csv와 data/name_canon.json을 만든다.
 
     python tools/build_stops.py
 
-- stops.csv: API 응답을 그대로, 이름의 앞뒤 공백만 떼서 8열로
+- source/stops.csv: API 응답을 그대로, 이름의 앞뒤 공백만 떼서 8열로.
+  source/의 다른 CSV 6개와 달리 이 파일만 스크립트가 쓴다 — 원본은 back_up/api_stops.json이다.
 - name_canon.json: 노선안 CSV의 정류장 표기 → API 정식 표기 (공백 4건 + 예외 3건)
 """
 import csv
@@ -27,7 +28,7 @@ norm = lambda s: re.sub(r"\s+", "", s)
 
 
 def stations() -> list[dict]:
-    raw = json.loads((ROOT / "data" / "api_stops.json").read_text(encoding="utf-8"))
+    raw = json.loads((ROOT / "data" / "back_up" / "api_stops.json").read_text(encoding="utf-8"))
     out = []
     for x in raw["STATION_LIST"]:
         x = dict(x)
@@ -51,7 +52,7 @@ def route_stops(fname: str, sep: str) -> set[str]:
 def main() -> None:
     S = stations()
 
-    dst = ROOT / "data" / "stops.csv"
+    dst = ROOT / "data" / "source" / "stops.csv"
     with open(dst, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS, extrasaction="ignore")
         w.writeheader()

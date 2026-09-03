@@ -1,4 +1,4 @@
-"""광주 BIS 정류소 목록을 받아 data/api_stops.json으로 저장한다.
+"""광주 BIS 정류소 목록을 받아 data/back_up/api_stops.json으로 저장한다.
 
 키는 .env의 GWANGJU_BUS_KEY(Decoding 키). 커밋하지 않는다(ADR-0005).
     python tools/fetch_stops.py
@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "data" / "api_stops.json"
+OUT = ROOT / "data" / "back_up" / "api_stops.json"
 
 # 순서대로 시도한다. 첫 번째가 광주 BIS 자체 포털, 두 번째가 data.go.kr 경유.
 ENDPOINTS = (

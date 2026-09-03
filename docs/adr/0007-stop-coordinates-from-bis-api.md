@@ -1,22 +1,25 @@
-# 정류장 좌표는 광주 BIS API에서 받아 `data/stops.csv`로 둔다
+# 정류장 좌표는 광주 BIS API에서 받아 `data/source/stops.csv`로 둔다
 
 2026-09-03 · 확정 · **ADR-0004를 대체한다**
 
 ## 결정
 
 정류장 좌표의 출처를 이전 리포의 `stops.json`에서 **광주 BIS 공개 API**로 바꾼다.
-구현에서 좌표가 필요한 곳은 모두 `data/stops.csv`를 읽는다. `data/stops.json`은 만들지 않는다.
+구현에서 좌표가 필요한 곳은 모두 `data/source/stops.csv`를 읽는다. `data/stops.json`은 만들지 않는다.
 
 | 파일 | 무엇 | 만드는 것 |
 |---|---|---|
-| `data/api_stops.json` | API 응답 원본. 고치지 않는다 | `tools/fetch_stops.py` |
-| `data/stops.csv` | 정류장 4,746개 × 8열. **좌표의 유일한 출처** | `tools/build_stops.py` |
+| `data/back_up/api_stops.json` | API 응답 원본. 고치지 않는다 | `tools/fetch_stops.py` |
+| `data/source/stops.csv` | 정류장 4,746개 × 8열. **좌표의 유일한 출처** | `tools/build_stops.py` |
 | `data/name_canon.json` | 노선안 표기 → API 정식 표기 8개 | `tools/build_stops.py` |
 
 엔드포인트는 `http://api.gwangju.go.kr/json/stationInfo`. 키는 `.env`의 `GWANGJU_BUS_KEY`이며
 커밋하지 않는다(ADR-0005). 연 단위로 갱신되는 자료라 빌드 때 부르지 않는다 — 사람이 받아 커밋한다.
 
-`stops.csv`의 열은 API 응답 그대로다.
+`stops.csv`는 빌드 스크립트가 읽는 입력이라 `source/`에 둔다 — 시 공표 CSV 6개와 같은 자리다.
+`source/`의 파일 중 스크립트가 쓰는 것은 이 하나뿐이며, 원본은 `back_up/api_stops.json`이다.
+
+열은 API 응답 그대로다.
 
 ```
 STATION_NUM, BUSSTOP_NAME, ARS_ID, NEXT_BUSSTOP, BUSSTOP_ID, LONGITUDE, NAME_E, LATITUDE
@@ -68,7 +71,7 @@ ADR-0004가 API 재취득을 기각한 근거는 「같은 원천이라 결과�
 
 ## 따라오는 것
 
-- 구현에서 좌표를 읽는 곳은 `data/stops.csv` 하나다. `route_geometry`와 `seed`가 여기서 읽는다.
+- 구현에서 좌표를 읽는 곳은 `data/source/stops.csv` 하나다. `route_geometry`와 `seed`가 여기서 읽는다.
 - 정류장 이름을 대조하기 전에 `name_canon.json`을 통과시킨다.
 - 좌표 없는 정류장(신설 56 + 신규 1)은 `route_geometry`에서 건너뛰고 앞뒤를 잇는다(ADR-0004에서 이어받음).
 - **ADR-0003의 전제 「정류장 ID가 없어 이름이 유일한 키」가 더는 맞지 않는다.** 명칭 변경 102행은
