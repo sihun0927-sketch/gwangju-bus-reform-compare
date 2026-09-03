@@ -35,9 +35,9 @@ ALIGN_TABLE = DATA / "기종점정렬표.csv"
 @pytest.fixture(scope="session")
 def site(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """진짜 CSV로 한 번만 빌드하고 모든 검사가 그 결과를 나눠 쓴다."""
-    out = tmp_path_factory.mktemp("out")
-    build(SOURCE, out)
-    return out
+    자리 = tmp_path_factory.mktemp("out")
+    build(SOURCE, 자리 / "out", 자리 / "data.json")
+    return 자리 / "out"
 
 
 def fragment(site: Path, parts: tuple[str, ...]) -> str:
@@ -93,7 +93,7 @@ def test_out을_비우고_다시_쓴다(tmp_path: Path) -> None:
     out.mkdir()
     stale = out / "지난번.html"
     stale.write_text("옛 조각", encoding="utf-8")
-    build(SOURCE, out)
+    build(SOURCE, out, tmp_path / "data.json")
     assert not stale.exists()
 
 
@@ -304,7 +304,7 @@ def test_입력이_든_자리는_출력으로_받아도_지우지_않는다(tmp_
     data = tmp_path / "data"
     shutil.copytree(DATA, data)
     with pytest.raises(BuildError):
-        build(data / "source", data)
+        build(data / "source", data, tmp_path / "data.json")
     assert (data / "source" / "노선개편 전후 비교표.csv").exists()
 
 
