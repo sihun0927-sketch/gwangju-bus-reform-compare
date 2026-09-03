@@ -27,9 +27,16 @@ async function 비교(from = 전남대, to = 광주송정역) {
   return await 응답.text();
 }
 
-/** 조각에서 노선망 하나의 카드만 떼어 낸다. */
+/**
+ * 조각에서 노선망 하나의 카드만 떼어 낸다.
+ *
+ * 「다른 경로 더 보기」는 카드 **밖**에 선다(격자 둘째 줄) — 같은 노선망의 것이라 함께 뗀다.
+ */
 function 카드(글, 노선망) {
-  const 자리 = new RegExp(`<article[^>]*data-network="${노선망}"[^]*?</article>`);
+  const 자리 = new RegExp(
+    `<article[^>]*data-network="${노선망}"[^]*?</article>`
+    + `(?:<details[^>]*data-network="${노선망}"[^]*?</details>)?`,
+  );
   return (글.match(자리) ?? [""])[0];
 }
 
@@ -85,6 +92,31 @@ test("카드마다 「다른 경로 더 보기」와 다른 경로 2개의 키�
     assert.ok(한장.includes("다른 경로 더 보기"), 노선망);
     // 기본 경로 하나 + 다른 경로 둘
     assert.equal(경로_키(한장).length, 1 + ALTERNATIVE_JOURNEYS, 노선망);
+  }
+});
+
+test("「다른 경로 더 보기」는 카드 밖에 서고 펴고 접힌다", async () => {
+  const 글 = await 비교();
+  for (const 노선망 of ["before", "after"]) {
+    // 카드 **안**에 있으면 한쪽만 펼쳐도 격자 첫 줄이 커져 옆 카드가 빈 채로 따라 늘어난다
+    const 카드만 = (글.match(
+      new RegExp(`<article[^>]*data-network="${노선망}"[^]*?</article>`),
+    ) ?? [""])[0];
+    assert.ok(!카드만.includes("<details"), `${노선망} — 다른 경로가 카드 안에 있다`);
+    assert.match(
+      글,
+      new RegExp(`</article><details class="alternatives" id="more-${노선망}"`),
+      `${노선망} — 카드 바로 뒤에 선다`,
+    );
+
+    // 펴고 접는 일은 `<details>` 몫이라 우리 스크립트가 없다(ADR-0001). 조각은 처음 펼 때 한 번만
+    // 부르고(`toggle once`), 그 뒤 접었다 펴는 것은 다시 받아 오지 않는다
+    const 방아쇠 = [...카드(글, 노선망).matchAll(/hx-trigger="([^"]*)"/g)].map((m) => m[1]);
+    assert.equal(방아쇠.length, ALTERNATIVE_JOURNEYS, 노선망);
+    assert.ok(
+      방아쇠.every((t) => t === `toggle once from:#more-${노선망}`),
+      `${노선망} — ${방아쇠.join(" / ")}`,
+    );
   }
 });
 
