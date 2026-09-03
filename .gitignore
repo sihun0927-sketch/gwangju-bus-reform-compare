@@ -9,9 +9,9 @@ __pycache__/
 .venv/
 .pytest_cache/
 
-# 빌드 산출물
+# 빌드 산출물 (`python -m tools.build`가 만든다)
 out/
-d1/seed.sql
+worker/data.json
 
 # wrangler
 .wrangler/
