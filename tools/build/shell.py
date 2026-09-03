@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import os
 from html import escape
 from pathlib import Path
 
@@ -40,7 +41,16 @@ CSS = "site.css"
 CSS_SOURCE = Path(__file__).resolve().parent / CSS
 PLACE_JS = "place.js"
 PLACE_JS_SOURCE = Path(__file__).resolve().parent / PLACE_JS
-# CDN 스크립트 태그 둘(htmx + 공식 확장 하나)과 우리 스크립트 하나 — 장소 탭의 place.js뿐이다.
+MAP_JS = "map.js"
+MAP_JS_SOURCE = Path(__file__).resolve().parent / MAP_JS
+
+# 지도 SDK. JS 키는 빌드 환경 변수에서 오고 리포에는 없다(ADR-0005). 키가 없으면 태그를 안 넣는다 —
+# 빌드는 성공하고 `map.js`가 `window.kakao` 없음을 보고 지도 자리에 한 줄만 남긴다
+KAKAO_JS_KEY_ENV = "KAKAO_JS_KEY"
+# `autoload=false`라야 SDK가 실릴 때 지도를 통째로 만들려 들지 않는다. 깨우는 것은 `map.js`다
+KAKAO_SDK = "//dapi.kakao.com/v2/maps/sdk.js?appkey={key}&autoload=false"
+
+# CDN 스크립트 태그 둘(htmx + 공식 확장 하나)과 우리 스크립트 둘 — 장소 탭 place.js와 두 탭 공용 map.js.
 # 우리가 쓰는 htmx 속성은 hx-get · hx-target · hx-swap · hx-trigger · hx-ext 다섯뿐이다(ADR-0001)
 HTMX = "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
 # CDN이 다른 파일을 내주면 브라우저가 아예 싣지 않는다. 위 주소를 받아 sha384로 잰 값이다
@@ -99,6 +109,14 @@ def candidates(rows: list[Row]) -> str:
     ])
 
 
+def kakao_sdk() -> list[str]:
+    """지도 SDK 태그 하나 — 키가 없으면 빈 목록이다. 키를 리포에 두지 않으므로 없는 것이 보통이다."""
+    key = os.environ.get(KAKAO_JS_KEY_ENV, "").strip()
+    if not key:
+        return []
+    return [f'<script src="{escape(KAKAO_SDK.format(key=key))}" defer></script>']
+
+
 def _place_panel() -> list[str]:
     return [
         '<section class="panel place">',
@@ -154,6 +172,8 @@ def page(route_list: str, rows: list[Row]) -> str:
         f'<script src="{PATH_PARAMS}" integrity="{PATH_PARAMS_SRI}"'
         ' crossorigin="anonymous" defer></script>',
         f'<script src="{PLACE_JS}" defer></script>',
+        *kakao_sdk(),
+        f'<script src="{MAP_JS}" defer></script>',
         "</head>",
         "<body>",
         '<main class="page">',

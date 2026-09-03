@@ -7,10 +7,14 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import math
 import re
 import shutil
 import subprocess
 import sys
+from collections import Counter
+from html import unescape
 from pathlib import Path
 
 import pytest
@@ -536,15 +540,17 @@ def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조�
     assert [값 for 값, _ in 후보] == 번호
 
 
-def test_껍데기의_스크립트는_htmx와_path_params_확장과_place_js_셋뿐이다(site: Path) -> None:
-    """확장은 htmx 뒤에 와야 켜진다. 우리가 쓴 스크립트는 장소 탭의 place.js 하나뿐이다(§7-3 Q1)."""
+def test_껍데기의_스크립트는_htmx와_확장과_우리_스크립트_둘뿐이다(site: Path) -> None:
+    """확장은 htmx 뒤에 와야 켜진다. 우리 스크립트는 장소 탭 place.js와 두 탭 공용 map.js 둘이다."""
     태그 = re.findall(r"<script\b[^>]*>", index(site))
-    assert len(태그) == 3
-    htmx태그, 확장태그, 우리태그 = 태그
+    assert len(태그) == 4
+    htmx태그, 확장태그, 장소태그, 지도태그 = 태그
     assert "htmx.org" in htmx태그
     assert "htmx-ext-path-params" in 확장태그
     assert 'integrity="sha384-' in 확장태그   # CDN이 다른 파일을 내주면 아예 싣지 않는다
-    assert 'src="place.js"' in 우리태그
+    assert 'src="place.js"' in 장소태그
+    assert 'src="map.js"' in 지도태그
+    assert (site / "map.js").exists()
 
 
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
@@ -594,3 +600,215 @@ def test_장소_입력칸_둘은_자동완성을_부르고_후보를_고르면_�
     assert (site / "place.js").exists()
     script = (site / "place.js").read_text(encoding="utf-8")
     assert "/compare?from=" in script
+
+
+# ── 노선 지도 (③ #36) ─────────────────────────────────────────────────────────
+
+GEOMETRY_RE = re.compile(
+    r'<script type="application/json" class="route-geometry">(.*?)</script>', re.S
+)
+# 좌표가 없는 것이 확인된 이름 둘 — 신설 정류소와 `name_canon.json`이 `null`이라 적은 것
+좌표_없는_정류장 = {"광주교대역1번출구", "광주교대역2번출구"}
+
+
+def geometry(html: str) -> dict:
+    """조각 하나에 실린 노선 지도 좌표 JSON."""
+    실린_것 = GEOMETRY_RE.search(html)
+    assert 실린_것, "노선 지도 좌표 JSON을 못 찾았습니다"
+    return json.loads(실린_것.group(1))
+
+
+def geometries(site: Path) -> list[tuple[Path, dict]]:
+    return [
+        (path, geometry(path.read_text(encoding="utf-8")))
+        for path in site.glob("route/*/*/*/*.html")
+    ]
+
+
+def test_표_조각_205개가_모두_노선_지도_좌표를_싣는다(site: Path) -> None:
+    실린_것 = geometries(site)
+    assert len(실린_것) == 205
+    for path, g in 실린_것:
+        assert set(g) == {"before", "after", "stops", "missing"}, path
+        assert g["before"] and g["after"], path
+        assert all(len(점) == 2 for 점 in g["before"] + g["after"]), path
+
+
+def test_문흥18_지도는_선_둘과_점_61개다(site: Path) -> None:
+    """상행만 그린다(§7-3 Q7). 점은 대조 줄에서 나오므로 요약 칸 수치와 같아야 한다."""
+    g = geometry(fragment(site, 문흥18))
+    assert len(g["before"]) == 58          # 문흥18 상행 58곳, 좌표 없는 것 0
+    assert len(g["after"]) == 52           # 간선18 하행 52곳(뒤집어 맞댄 쪽)
+    assert len(g["stops"]) == 61
+    assert Counter(s["state"] for s in g["stops"]) == {"유지": 49, "경유 제외": 9, "경유 추가": 3}
+    assert g["missing"] == 0
+
+
+def test_뒤집힌_쌍의_대체_노선_선은_하행_순서로_그린다(site: Path) -> None:
+    """하남고등학교는 간선18의 기점이다. 뒤집어 맞댔으니 대체 노선 선의 끝에 와야 한다."""
+    g = geometry(fragment(site, 문흥18))
+    하남 = next(s for s in g["stops"] if s["name"] == "하남고등학교")
+    끝점 = [하남["lat"], 하남["lng"]]
+    assert g["after"][-1] == 끝점
+    assert g["after"][0] != 끝점
+
+
+def test_유지와_경유_제외는_개편_전_좌표_경유_추가는_개편_후_좌표다(site: Path) -> None:
+    g = geometry(fragment(site, 문흥18))
+    개편_전 = {tuple(점) for 점 in g["before"]}
+    개편_후 = {tuple(점) for 점 in g["after"]}
+    for s in g["stops"]:
+        점 = (s["lat"], s["lng"])
+        assert 점 in (개편_후 if s["state"] == "경유 추가" else 개편_전), s
+
+
+def test_좌표_없는_정류장은_건너뛰고_개수를_센다(site: Path) -> None:
+    """순환01 ↔ 간선01의 광주교대역1번출구는 좌표가 없다. 지어내지 않고 앞뒤를 잇는다."""
+    html = fragment(site, 순환01)
+    g = geometry(html)
+    assert g["missing"] == 1
+    assert len(g["stops"]) == 79   # 대조 줄 80개에서 하나가 빠졌다
+    assert "좌표 없는 정류장 1곳은 지도에 없습니다" in html
+
+
+def test_좌표를_지어내지_않는다(site: Path) -> None:
+    """신설 정류소와 `name_canon.json`이 `null`이라 적은 이름은 점이 되지 않는다(ADR-0007).
+
+    추정 좌표는 장소 탭 계산 전용이라 지도에는 오지 않는다. 205개 표 전수.
+    """
+    빠진_표 = 0
+    for path, g in geometries(site):
+        assert not ({s["name"] for s in g["stops"]} & 좌표_없는_정류장), path
+        빠진_표 += bool(g["missing"])
+    assert 빠진_표 == 85   # 205개 중 좌표 없는 정류장이 있는 표
+
+
+상행_줄_RE = re.compile(
+    r'<td class="index">\d+</td>'
+    r'<td class="(kept|dropped|added)">([^<]*)</td><td class="\1">([^<]*)</td>'
+)
+
+
+def 지도에_설_이름(html: str) -> set[str]:
+    """표의 상행 줄이 지도에 점으로 세울 정류장 이름들.
+
+    경유 추가는 개편 후 칸, 유지·경유 제외는 개편 전 칸의 이름이다(§7-3 Q6). 상행이 먼저 끝난
+    줄은 두 칸이 비어 있어 여기 걸리지 않는다.
+    """
+    return {
+        unescape(개편_후 if 상태 == "added" else 개편_전)
+        for 상태, 개편_전, 개편_후 in 상행_줄_RE.findall(html)
+    }
+
+
+def test_그리지_못한_정류장은_반드시_센다(site: Path) -> None:
+    """조용히 흘린 정류장이 없다. `missing`은 **정류장 수**다 — 화면 문구가 「정류장 N곳」이라,
+    한 노선이 같은 정류장을 두 번 지나도(지선92의 왕동저수지·내동·원당) 한 곳으로 센다."""
+    for path, g in geometries(site):
+        설_이름 = 지도에_설_이름(path.read_text(encoding="utf-8"))
+        그려진 = {s["name"] for s in g["stops"]}
+        assert 그려진 <= 설_이름, path
+        assert g["missing"] == len(설_이름 - 그려진), path
+
+
+def test_같은_정류장을_두_번_지나도_한_곳으로_센다(site: Path) -> None:
+    """지선92는 왕동저수지·내동·원당을 두 번씩 지난다. 줄로 세면 8곳, 정류장으로 세면 6곳이다."""
+    html = fragment(site, ("송정197", "기본", "지선92", "기본.html"))
+    assert "좌표 없는 정류장 6곳은 지도에 없습니다" in html
+
+
+def test_카드에_노선_지도_자리와_범례가_있다(site: Path) -> None:
+    html = card(site, "문흥18")
+    assert '<div class="route-map"' in html
+    assert "굵은 초록 = 개편 전 · 가는 파랑 = 대체 노선" in html
+    assert "점: 유지 회색 · 경유 제외 빨강 · 경유 추가 파랑" in html
+    assert "지도에 없습니다" not in html   # 문흥18 ↔ 간선18은 좌표가 다 있다
+
+
+def test_좌표_없는_정류장이_있는_카드에는_그_줄이_따라온다(site: Path) -> None:
+    """카드는 기본 표를 품으므로 그 표의 안내 줄도 함께 온다 — 표가 바뀌면 줄도 바뀐다."""
+    assert "좌표 없는 정류장 1곳은 지도에 없습니다" in card(site, "순환01")
+
+
+def test_대체_노선이_없는_카드에는_지도가_없다(site: Path) -> None:
+    """두암181은 표가 없으니 그릴 좌표도 없다."""
+    html = card(site, "두암181")
+    assert "route-map" not in html
+    assert "route-geometry" not in html
+
+
+def test_KAKAO_JS_KEY가_없으면_지도_SDK를_안_부른다(site: Path) -> None:
+    """키가 없어도 빌드는 성공한다. 리포에 키를 두지 않는다(ADR-0005)."""
+    assert "dapi.kakao.com" not in index(site)
+
+
+def test_KAKAO_JS_KEY가_있으면_appkey에_그_값이_들어간다(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("KAKAO_JS_KEY", "테스트용키")
+    build(SOURCE, tmp_path / "out", tmp_path / "data.json")
+    html = (tmp_path / "out" / "index.html").read_text(encoding="utf-8")
+    태그 = re.search(r"<script[^>]*dapi\.kakao\.com[^>]*>", html)
+    assert 태그, "Kakao 지도 SDK 태그를 못 찾았습니다"
+    assert "appkey=테스트용키" in 태그.group(0)
+    assert "autoload=false" in 태그.group(0)
+
+
+def test_map_js는_kakao가_없으면_조용히_끝난다(site: Path) -> None:
+    """키 없이 배포해도 화면이 깨지지 않는다 — 지도 자리에 한 줄만 남는다."""
+    script = (site / "map.js").read_text(encoding="utf-8")
+    assert "지도를 불러오지 못했습니다" in script
+    assert "htmx:afterSwap" in script
+    assert "route-geometry" in script
+
+
+def 사이_거리(a: list[float], b: list[float]) -> float:
+    """두 좌표 사이 거리(m). 광주 한 도시 안이라 위경도를 평면으로 놓고 재도 충분하다."""
+    return math.hypot(
+        (a[1] - b[1]) * 111_000 * math.cos(math.radians(a[0])), (a[0] - b[0]) * 111_000
+    )
+
+
+def 가장_먼_이웃(g: dict) -> float:
+    """선 둘에서 이웃한 두 점이 가장 멀리 벌어진 거리."""
+    return max(
+        [0.0]
+        + [사이_거리(a, b) for 선 in (g["before"], g["after"]) for a, b in zip(선, 선[1:])]
+    )
+
+
+def test_같은_이름이_여러_곳이면_노선에_가까운_곳을_고른다(site: Path) -> None:
+    """`stops.csv`는 광주와 전남을 함께 담아 「금곡마을」이 55km 떨어진 여섯 줄이다. 이름이 붙은
+    줄을 다 평균 내면 아무 정류장도 없는 들판에 점이 찍히고 선이 왕복 50km를 튄다 — 그렇게 하면
+    205개 표 중 130개에 3km 넘는 튐이 생겼다. 노선을 따라 가장 짧아지는 자리를 고른다.
+    """
+    벌어짐 = {path: 가장_먼_이웃(g) for path, g in geometries(site)}
+    # 충효188 ↔ 지선187-1은 「금곡마을」 하나 때문에 31km를 튀었다
+    충효 = site / "route" / "충효188" / "기본" / "지선187-1" / "기본.html"
+    assert 벌어짐[충효] < 3_000
+
+    # 남는 것은 진짜로 먼 구간뿐이다 — 나주·화순으로 곧장 가는 직행·급행, 그리고 좌표 없는
+    # 정류장을 건너뛰어 이은 자리. 55km짜리 들판 점이 하나라도 있으면 여기서 걸린다
+    먼_표 = {path.name: round(m) for path, m in 벌어짐.items() if m > 13_000}
+    assert 먼_표 == {}
+    assert sum(1 for m in 벌어짐.values() if m > 3_000) <= 23
+
+
+def 부분_차례(작은: list, 큰: list) -> bool:
+    """`작은`이 `큰`의 차례를 지키는 부분열인가."""
+    남은 = iter(큰)
+    return all(any(x == y for y in 남은) for x in 작은)
+
+
+def test_점은_선이_고른_자리에_같은_차례로_찍힌다(site: Path) -> None:
+    """점과 선이 같은 이름을 따로 고르면 점이 선 밖으로 떨어진다.
+
+    유지·경유 제외 점은 개편 전 선의 꼭짓점 **전부**와 같다 — 그 둘이 개편 전 목록을 하나씩
+    나눠 가졌기 때문이다. 경유 추가 점은 대체 노선 선의 부분열이다(유지 줄이 쓴 자리는 개편 전
+    쪽에 찍히므로). 차례가 한 칸이라도 밀리면 여기서 걸린다. 205개 표 전수.
+    """
+    for path, g in geometries(site):
+        개편_전 = [[s["lat"], s["lng"]] for s in g["stops"] if s["state"] != "경유 추가"]
+        경유_추가 = [[s["lat"], s["lng"]] for s in g["stops"] if s["state"] == "경유 추가"]
+        assert 개편_전 == g["before"], path
+        assert 부분_차례(경유_추가, g["after"]), path

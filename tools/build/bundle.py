@@ -98,6 +98,21 @@ class StopIndex:
         return name in additions or self.canon.get(name, name) is None
 
 
+def stop_index(
+    stops: list[Stop],
+    canon: dict[str, str | None],
+    renames: RenameDict,
+) -> StopIndex:
+    """`stops.csv` 줄들을 이름과 ARS_ID로 찾을 수 있게 묶는다. 번들과 노선 지도가 같은 것을 쓴다."""
+    by_name: dict[str, list[Stop]] = {}
+    by_ars: dict[str, list[Stop]] = {}
+    for s in stops:
+        by_name.setdefault(s.name, []).append(s)
+        if s.ars_id:
+            by_ars.setdefault(s.ars_id, []).append(s)
+    return StopIndex(by_name=by_name, by_ars=by_ars, canon=canon, renames=renames)
+
+
 def route_id(network: str, name: str) -> str:
     """번들에서 노선 하나를 부르는 이름. 노선망이 다르면 같은 번호라도 다른 노선이다."""
     return f"{network}:{name}"
@@ -116,13 +131,7 @@ def make(
     STATION_NUM에 못 잇는 이름이 있으면 그 목록을 담은 `BuildError`를 낸다.
     """
     order = {s.station_num: i for i, s in enumerate(stops)}
-    by_name: dict[str, list[Stop]] = {}
-    by_ars: dict[str, list[Stop]] = {}
-    for s in stops:
-        by_name.setdefault(s.name, []).append(s)
-        if s.ars_id:
-            by_ars.setdefault(s.ars_id, []).append(s)
-    index = StopIndex(by_name=by_name, by_ars=by_ars, canon=canon, renames=renames)
+    index = stop_index(stops, canon, renames)
 
     routes: dict[str, dict] = {}
     plans: Plans = {}

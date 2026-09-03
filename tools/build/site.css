@@ -15,6 +15,14 @@
   --worse-ink: #b2402f;
   --better-bg: #e3f0ed;  /* 개편 후에만 지나는 줄 — 경유 추가 */
   --better-ink: #0e6b5c;
+  /* 노선 지도의 색. `map.js`가 이 값을 읽어 선과 점을 칠하므로 색이 적힌 곳은 여기 하나다.
+     표와 같아야 하는 색은 값을 베끼지 않고 위 토큰을 가리킨다 — 표를 손보면 지도가 따라온다.
+     대체 노선 파랑만 지도에만 있는 색이다(표의 경유 추가는 그대로 초록, §7-3 Q7). */
+  --before-line: var(--accent);
+  --after-line: #1d4ed8;
+  --kept-dot: var(--ink-muted);
+  --dropped-dot: var(--worse-ink);
+  --added-dot: var(--after-line);
   --radius: 12px;
   --gap: 16px;
 }
@@ -174,6 +182,40 @@ thead th {
 }
 .choice button:hover { background: var(--better-bg); border-color: var(--accent-soft); }
 .choice button:focus-visible { outline: 2px solid var(--accent-soft); }
+
+/* 노선 지도 — 자리와 범례는 카드에, 좌표와 「지도에 없습니다」 줄은 표에 있다.
+   자리는 `map.js`가 Kakao 지도로 채우므로 안쪽 배치를 바꾸는 속성(flex·grid)을 걸지 않는다 */
+.route-map-area { margin-bottom: 8px; }
+.route-map {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field-bg);
+  overflow: hidden;
+}
+.map-note {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.map-legend { margin: 0 0 4px; color: var(--ink-muted); font-size: 13px; }
+.map-missing { margin: 0 0 10px; color: var(--worse-ink); font-size: 13px; }
+.route-stop-dot {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid var(--card-bg);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
 
 /* 노선 변화 표 */
 .route-change { margin-top: 16px; }
