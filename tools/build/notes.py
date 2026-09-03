@@ -31,7 +31,7 @@ class Note:
 
 @dataclass(frozen=True)
 class Absorbed:
-    """통폐합 한 건 — 정류장 `into`가 흡수된 정류장 하나. CSV의 「A(B)」에서 A가 `into`, B가 열쇠다."""
+    """통폐합 한 건. CSV의 「A(B)」에서 A가 남는 쪽(`into`)이고 B가 흡수된 쪽 — 열쇠는 B다."""
 
     into: str
     reason: str
@@ -49,15 +49,15 @@ class Facts:
     def note_for(self, line: Line) -> Note:
         """줄 하나의 비고. 해당하는 사실이 없으면 빈 비고다.
 
-        통폐합은 줄의 상태를 가리지 않는다 — 통폐합 CSV가 폐지됐다는 정류장이 개편 후 노선안에
-        남아 있어도(서방사거리육교) 노선안을 고쳐 읽지 않고, 그 줄이 「유지」인 채로 비고만 붙인다
+        통폐합만 줄 상태를 가리지 않는다 — 통폐합 CSV가 폐지됐다는 정류장이 개편 후 노선안에 남아
+        있어도(서방사거리육교) 노선안을 고쳐 읽지 않고 그 줄이 「유지」인 채로 비고만 붙인다
         (architecture §7-3 Q3). 두 공표 자료가 어긋난다는 것을 그대로 보이는 쪽을 택했다.
         """
         cells: list[Note] = []
         if line.state == KEPT and self.renames.renamed(line.before, line.after):
             cells.append(Note(f"{RENAMED}: {line.before} → {line.after}"))
-        if line.before in self.absorbed:
-            found = self.absorbed[line.before]
+        found = self.absorbed.get(line.before)
+        if found:
             cells.append(Note(f"{MERGED}: {found.into}에 흡수", found.reason))
         if line.state == DROPPED:
             removal = self.removals.get(line.before)
@@ -70,10 +70,10 @@ class Facts:
 
 def split_absorbed(stop: str) -> tuple[str, str]:
     """통폐합 CSV의 「A(B)」 → (A, B). B에 괄호가 또 있어도(오치한전(오치한전(북))) 첫 괄호에서 가른다."""
-    head, sep, tail = stop.partition("(")
-    if not sep or not tail.endswith(")"):
+    into, sep, gone = stop.partition("(")
+    if not sep or not gone.endswith(")"):
         raise BuildError(f"통폐합 행의 정류소명은 「남는 쪽(흡수된 쪽)」 꼴이어야 합니다: {stop!r}")
-    return head, tail[:-1]
+    return into, gone[:-1]
 
 
 def collect(
@@ -97,7 +97,13 @@ def collect(
             )
         if row.kind == MERGED:
             into, gone = split_absorbed(row.stop)
-            absorbed[gone] = Absorbed(into, row.reason)
+            merge = Absorbed(into, row.reason)
+            seen_merge = absorbed.setdefault(gone, merge)
+            if seen_merge != merge:
+                raise BuildError(
+                    f"통폐합이전 CSV가 {gone}을(를) 두 곳에 흡수시킵니다:"
+                    f" 「{seen_merge.into}」 / 「{into}」"
+                )
     return Facts(
         renames=renames, removals=by_name, absorbed=absorbed, additions=frozenset(additions)
     )

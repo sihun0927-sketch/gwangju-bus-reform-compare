@@ -85,6 +85,13 @@ h1 { margin: 0 0 8px; font-size: 30px; color: var(--accent); letter-spacing: -0.
 }
 .field input:disabled { color: var(--ink-muted); }
 .field label { color: var(--ink-muted); font-size: 13px; white-space: nowrap; }
+.place-candidate-list { margin: -4px 0 10px; }
+.place-candidates { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.place-candidates li { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.place-candidates li:last-child { border-bottom: 0; }
+.place-candidates li:hover { background: var(--better-bg); }
+.place-candidates strong, .place-candidates span { display: block; }
+.place-candidates span { color: var(--ink-muted); font-size: 13px; }
 
 /* 노선 개편 목록 표 — 첫 화면에 늘 펼쳐져 있다 */
 .route-list h2 { margin: 0 0 8px; font-size: 19px; }

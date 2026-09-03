@@ -288,7 +288,7 @@ REST 키는 장소 검색용, Worker 환경 변수에만. JS 키는 지도용, �
 | `bundle` | 번들 JSON | `load`·`rename_dict`·`branches`의 결과와 `data/source/stops.csv`로 `worker/data.json`을 쓴다. 표 다섯 — stops(STATION_NUM·ARS_ID·이름·lat·lng·추정 여부, **stops.csv 줄 단위**로 길 양쪽이 따로) · routes(노선망·노선 이름·배차) · route_stops(노선·방향·순번·이름·STATION_NUM, 이름 하나 → 그 이름의 줄 전부) · transfers(350m 안 정류장 쌍·거리) · route_links(노선 쌍당 최단 환승 지점 **1개**). 개편 후 이름은 명칭 사전으로 STATION_NUM에 잇고, 좌표 없는 57개는 앞뒤 중점의 추정 좌표. 노선안 정류장 bbox도 여기서 낸다. 약 1MB, Worker가 import한다(ADR-0008) |
 
 **② Worker** — `worker/`. 요청마다 실행되는 JavaScript 서버 코드. 장소 탭만 쓴다(ADR-0001). 세 진입점과
-브라우저 스크립트 하나. 데이터는 번들 JSON뿐이고 D1은 없다(ADR-0008). 경로 계산 규칙은 장소 탭 절의 용어
+브라우저 스크립트들. 데이터는 번들 JSON뿐이고 D1은 없다(ADR-0008). 경로 계산 규칙은 장소 탭 절의 용어
 (도보권·환승 도보·추정 소요 시간)에 있고, 상수는 `worker/rules.js` 한 곳. 정적 자산과 같은 Worker이며
 `run_worker_first`로 세 경로만 코드가 받는다. `worker/index.js`가 그 `fetch(request, env)` 진입점 하나로,
 세 경로를 아래 표로 나누고 나머지는 `env.ASSETS`로 넘긴다.
@@ -298,6 +298,7 @@ REST 키는 장소 검색용, Worker 환경 변수에만. JS 키는 지도용, �
 | `places` | 자동완성 후보 | `GET /places?q=검색어`. 2글자 미만이면 빈 조각. Kakao 로컬 REST를 대신 호출(키는 Worker 환경 변수 `KAKAO_REST_KEY`, ADR-0005), 검색 범위는 번들의 노선안 정류장 bbox + 5km(`rect`), 상위 5개를 `<ul>` 조각으로. 항목마다 이름·주소·`data-lat`·`data-lng`. 같은 검색어의 응답은 Cache API에 하루. 빈 결과·실패는 한 줄 문구 조각. 입력칸의 `hx-trigger="keyup changed delay:250ms"`가 부른다 |
 | `compare` | 개편 전 카드 / 개편 후 카드 | `GET /compare?from=lat,lng&to=lat,lng`. 두 지점이 500m 이하면 "걸어갈 수 있는 거리" 조각. 아니면 노선망 둘 각각 `candidates`(지점 → 도보권 정류장, 출발은 1,000m까지 확대) → `search`(후보 쌍 → 경로, route_links로 환승 2회까지, 같은 방향 뒤 순번만) → `rank`(추정 소요 시간 → 환승 → 도보, 노선 조합 중복 제거, 기본 1 + 다른 경로 2) → `render`(→ HTML). 카드 한 쌍(머리에 상태) + 경로 지도 좌표 JSON + 다른 경로 카드용 경로 키. 판정 문장은 없다. 무료 요금제 요청당 CPU 제한 안에 드는지가 첫 실측 |
 | `journey` | 다른 경로 카드 | `GET /journey/{id}`. 경로 키 = 노선망 · 승차 STATION_NUM · 노선 · (환승 STATION_NUM · 노선 …) · 하차 STATION_NUM을 base64url로 적은 것. 재계산 없이 번들에서 복원해 정류장 목록·지표·좌표 JSON을 다른 경로 카드 조각으로 돌려준다. 저장소 없음 |
-| `map` | 경로 지도 · 노선 지도 | 브라우저 스크립트. htmx가 조각을 끼운 뒤 `htmx:afterSwap`에서 조각 안 좌표 JSON을 읽어 Kakao JS SDK로 타일 위에 점선(개편 전)·실선(개편 후)·정류장 점을 그린다. 장소 탭(경로 지도)과 노선번호 탭(노선 지도)이 같은 함수를 쓰고 입력만 다르다. JS 키는 Pages 환경 변수(ADR-0005). Worker가 아니지만 조각을 소비하는 유일한 브라우저 코드라 여기 둔다 |
+| `place` | 장소 선택 | 브라우저 스크립트. 자동완성 후보를 고르면 출발·도착 입력칸에 이름과 좌표를 확정하고, 둘 다 고르면 `/compare` 조각을 결과 영역에 끼운다. `map`과 함께 Worker 조각을 소비한다 |
+| `map` | 경로 지도 · 노선 지도 | 브라우저 스크립트. htmx가 조각을 끼운 뒤 `htmx:afterSwap`에서 조각 안 좌표 JSON을 읽어 Kakao JS SDK로 타일 위에 점선(개편 전)·실선(개편 후)·정류장 점을 그린다. 장소 탭(경로 지도)과 노선번호 탭(노선 지도)이 같은 함수를 쓰고 입력만 다르다. JS 키는 Pages 환경 변수(ADR-0005). Worker가 아니지만 `place`와 함께 조각을 소비한다 |
 
 `compare`의 안은 다섯으로 나뉜다 — `network`(번들을 노선망 둘로 갈라 조회할 모습으로 바꾼다. 모듈이 처음 불릴 때 한 번. `route_links`를 양쪽으로 펴고, 그 자리에서 탈 수 있는 방향·순번과 표를 찾는 열쇠까지 미리 붙여 둔다) → `candidates`(도보권 후보 · 두 지점 사이 거리) → `search`(경로 탐색. 구간을 하나씩 이으며 직행 → 환승 1회 → 환승 2회를 한 바퀴씩 본다) → `rank`(순위와 노선 조합 중복 제거) → `render`(조각). 번들의 생김새를 아는 곳은 `network` 하나이고, 나머지 넷은 그것이 만든 모습만 본다.

@@ -30,6 +30,7 @@ ALIGN_TABLE = DATA / "기종점정렬표.csv"
 문흥80 = ("문흥80", "기본", "간선80", "기본.html")
 송정93 = ("송정93", "기본", "지선93", "기본.html")
 운림54 = ("운림54", "기본", "간선54", "기본.html")
+매월06 = ("매월06", "기본", "간선06", "기본.html")
 
 
 @pytest.fixture(scope="session")
@@ -179,7 +180,7 @@ def test_비고에_상태_문구는_적지_않는다(site: Path) -> None:
 
 def test_통폐합은_흡수된_쪽이_개편_전_열에_나오는_줄에_붙는다(site: Path) -> None:
     """통폐합 CSV의 「A(B)」는 B가 A에 흡수된 것 — 「오치한전(오치한전(북))」은 오치한전(북)이 오치한전에
-    (architecture §7-3 Q3). 비고는 B가 개편 전 열에 있는 줄에, 사유는 title에."""
+    (architecture §7-3 Q3). 비고는 B가 개편 전 열에 나오는 줄에 붙고 사유 문장은 title이다."""
     html = fragment(site, 운림54)
     줄 = next(r for r in rows(html) if ">오치한전(북)<" in r)
     assert '<td class="dropped">오치한전(북)</td>' in 줄
@@ -188,12 +189,13 @@ def test_통폐합은_흡수된_쪽이_개편_전_열에_나오는_줄에_붙는
 
 
 def test_통폐합_CSV와_노선안이_어긋나도_노선안을_고쳐_읽지_않는다(site: Path) -> None:
-    """서방사거리육교는 통폐합 CSV가 계림사거리에 흡수·폐지됐다고 적었지만 개편 후 노선안(간선19·간선39·419)에
-    그대로 있다. 그 줄은 「유지」인 채로 비고만 붙는다 — 두 공표 자료가 어긋난다는 것을 그대로 보인다."""
-    html = fragment(site, ("매월06", "기본", "간선06", "기본.html"))
-    줄 = next(r for r in rows(html) if ">서방사거리육교<" in r)
+    """서방사거리육교는 통폐합 CSV가 계림사거리에 흡수·폐지됐다고 적었지만 개편 후 노선안(간선19·간선39
+    ·419)에 그대로 있다. 정류장 목록의 출처는 노선안 하나이므로 그 줄은 「유지」인 채 비고만 붙는다 —
+    두 공표 자료가 어긋난다는 것을 그대로 보인다(architecture §7-3 Q3)."""
+    줄 = next(r for r in rows(fragment(site, 매월06)) if ">서방사거리육교<" in r)
     assert '<td class="dropped">서방사거리육교</td>' in 줄
     assert ">통폐합: 계림사거리에 흡수</td>" in 줄
+
     유지줄 = [
         r
         for path in site.rglob("*.html")
@@ -205,6 +207,7 @@ def test_통폐합_CSV와_노선안이_어긋나도_노선안을_고쳐_읽지_�
 
 
 def test_통폐합_행이_A_B_꼴이_아니면_멈춘다() -> None:
+    """비고를 짐작으로 붙이지 않는다 — 가를 수 없는 이름이면 빌드가 선다."""
     from tools.build.notes import split_absorbed
 
     assert split_absorbed("오치한전(오치한전(북))") == ("오치한전", "오치한전(북)")
@@ -326,6 +329,22 @@ def test_같은_정류장의_통폐합_행이_서로_다른_말을_하면_멈춘
     끝 = run_cli(data, tmp_path / "out")
     assert 끝.returncode == 1
     assert "계림사거리(서방사거리육교)" in 끝.stderr
+
+
+def test_같은_정류장을_두_곳에_흡수시키면_멈춘다(tmp_path: Path) -> None:
+    """정류소명이 행마다 달라 위 검사에는 안 걸리지만, 흡수된 쪽(B)이 같으면 어느 곳에 흡수됐다고
+    적을지 우리가 고를 수 없다."""
+    data = tmp_path / "data"
+    shutil.copytree(DATA, data)
+    표 = data / "source" / "통폐합이전정류소.csv"
+    줄 = 표.read_text(encoding="utf-8-sig").splitlines()
+    바뀐 = [줄[0], 줄[1].replace("계림사거리(", "서방사거리("), *줄[2:]]
+    assert 바뀐[1] != 줄[1]
+    write_bom_csv(표, 바뀐)
+
+    끝 = run_cli(data, tmp_path / "out")
+    assert 끝.returncode == 1
+    assert "서방사거리육교" in 끝.stderr
 
 
 def test_입력이_든_자리는_출력으로_받아도_지우지_않는다(tmp_path: Path) -> None:
@@ -498,19 +517,34 @@ def test_목록_줄은_눌리는_것으로_읽히고_끼운_자리를_보여_준
 
 
 def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조각을_부른다(site: Path) -> None:
-    """자동완성 후보는 <datalist> 103개 — 값은 번호, 설명은 대체 노선(§7-3 Q1·Q2). 우리 스크립트는 없다."""
+    """자동완성 후보는 <datalist> 103개 — 값은 번호, 설명은 대체 노선(§7-3 Q1·Q2)."""
     html = index(site)
-    입력칸 = re.search(r'<input id="number"[^>]*>', html).group(0)
-    assert "disabled" not in 입력칸
-    assert 'list="route-numbers"' in 입력칸 and 'name="number"' in 입력칸
-    assert 'hx-ext="path-params"' in 입력칸 and 'hx-get="route/{number}.html"' in 입력칸
-    assert 'hx-target="#result"' in 입력칸 and 'hx-trigger="change"' in 입력칸
+    입력칸 = re.search(r'<input id="number"[^>]*>', html)
+    assert 입력칸, "노선번호 입력칸을 못 찾았습니다"
+    칸 = 입력칸.group(0)
+    assert "disabled" not in 칸
+    assert 'list="route-numbers"' in 칸 and 'name="number"' in 칸
+    assert 'hx-ext="path-params"' in 칸 and 'hx-get="route/{number}.html"' in 칸
+    assert 'hx-target="#result"' in 칸 and 'hx-trigger="change"' in 칸
     후보 = re.findall(r'<option value="([^"]*)" label="([^"]*)">', html)
     assert len(후보) == 103
-    assert ("지원152", "간선18 · 지선10") in 후보 or ("문흥18", "간선18 · 지선10") in 후보
+    assert ("문흥18", "간선18 · 지선10") in 후보
+    assert ("지원152", "급행1003 · 228") in 후보
     assert ("두암181", "대체 노선 없음") in 후보
-    assert [n for n, _ in 후보] == [re.search(r'route/(.*?)\.html', r).group(1) for r in list_rows(html)]
-    assert "htmx-ext-path-params" in html and 'integrity="sha384-' in html
+    # 후보 순서는 목록 표 순서 그대로다 — 같은 번호를 두 곳이 다르게 적는 일이 없다
+    번호 = [re.search(r"route/(.*?)\.html", 줄).group(1) for 줄 in list_rows(html)]
+    assert [값 for 값, _ in 후보] == 번호
+
+
+def test_껍데기의_스크립트는_htmx와_path_params_확장과_place_js_셋뿐이다(site: Path) -> None:
+    """확장은 htmx 뒤에 와야 켜진다. 우리가 쓴 스크립트는 장소 탭의 place.js 하나뿐이다(§7-3 Q1)."""
+    태그 = re.findall(r"<script\b[^>]*>", index(site))
+    assert len(태그) == 3
+    htmx태그, 확장태그, 우리태그 = 태그
+    assert "htmx.org" in htmx태그
+    assert "htmx-ext-path-params" in 확장태그
+    assert 'integrity="sha384-' in 확장태그   # CDN이 다른 파일을 내주면 아예 싣지 않는다
+    assert 'src="place.js"' in 우리태그
 
 
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
@@ -524,7 +558,7 @@ def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
 
 def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
     # 입력칸의 `route/{number}.html`은 틀이라 뺀다 — 값이 들어가야 주소가 된다
-    주소 = [u for u in re.findall(r'hx-get="([^"]+)"', index(site)) if "{" not in u]
+    주소 = [u for u in re.findall(r'hx-get="(route/[^"]+)"', index(site)) if "{" not in u]
     assert len(주소) == 103
     for url in 주소:
         assert (site / url).exists(), url
@@ -545,3 +579,18 @@ def test_두_탭의_입력칸이_자리를_잡고_결과_영역은_비어_있다
     assert html.count("장소나 주소 입력 (예: 전남대)") == 2   # 출발·도착
     assert 'id="result"' in html
     assert "route-change" not in html   # 카드는 아직 안 끼워져 있다
+
+
+def test_장소_입력칸_둘은_자동완성을_부르고_후보를_고르면_비교를_요청한다(site: Path) -> None:
+    html = index(site)
+    assert html.count('hx-get="/places"') == 2
+    assert html.count('hx-trigger="keyup changed delay:250ms"') == 2
+    장소칸 = [줄 for 줄 in html.splitlines() if "장소나 주소 입력 (예: 전남대)" in 줄]
+    assert all("disabled" not in 줄 for 줄 in 장소칸)
+    assert "장소로 찾기는 아직 준비 중입니다" not in html
+    assert 'id="from-candidates"' in html
+    assert 'id="to-candidates"' in html
+    assert 'id="place-result"' in html
+    assert (site / "place.js").exists()
+    script = (site / "place.js").read_text(encoding="utf-8")
+    assert "/compare?from=" in script

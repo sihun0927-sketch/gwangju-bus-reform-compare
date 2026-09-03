@@ -33,10 +33,62 @@ test("/compare는 HTML 조각을 돌려준다", async () => {
   assert.match(await 응답.text(), /개편 전[\s\S]*개편 후/);
 });
 
-test("/places와 /journey는 아직 준비 중 조각을 돌려준다", async () => {
-  for (const url of ["/places?q=전남대", "/journey/abc"]) {
-    assert.match(await (await 부른다(url)).text(), /준비 중/, url);
-  }
+test("/journey는 준비 중 조각을 돌려준다", async () => {
+  assert.match(await (await 부른다("/journey/abc")).text(), /준비 중/);
+});
+
+test("/places는 한 글자에는 빈 조각을, 두 글자에는 Kakao 후보 다섯 개를 돌려준다", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  const calls = [];
+  const cached = new Map();
+  globalThis.caches = {
+    default: {
+      async match(request) { return cached.get(request.url)?.clone(); },
+      async put(request, response) { cached.set(request.url, response.clone()); },
+    },
+  };
+  globalThis.fetch = async (url) => {
+    calls.push(new URL(url));
+    return Response.json({ documents: Array.from({ length: 6 }, (_, index) => ({
+      place_name: `전남대 ${index + 1}`,
+      address_name: `광주 ${index + 1}`,
+      y: `35.17${index}`,
+      x: `126.90${index}`,
+    })) });
+  };
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    globalThis.caches = originalCaches;
+  });
+
+  assert.equal(await (await 부른다("/places?q=전")).text(), "");
+  const first = await (await 부른다("/places?q=전남대")).text();
+  const second = await (await 부른다("/places?q=전남대")).text();
+
+  assert.equal((first.match(/<li\b/g) ?? []).length, 5);
+  assert.match(first, /전남대 1/);
+  assert.match(first, /광주 1/);
+  assert.match(first, /data-lat="35\.170"/);
+  assert.match(first, /data-lng="126\.900"/);
+  assert.equal(first, second);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].searchParams.get("query"), "전남대");
+  assert.ok(calls[0].searchParams.get("rect"));
+});
+
+test("/places는 Kakao 실패 때 한 줄 안내 조각을 돌려준다", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalCaches = globalThis.caches;
+  globalThis.caches = { default: { match: async () => undefined, put: async () => {} } };
+  globalThis.fetch = async () => new Response("failed", { status: 500 });
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    globalThis.caches = originalCaches;
+  });
+
+  const html = await (await 부른다("/places?q=실패")).text();
+  assert.match(html, /^<p class="notice">.+<\/p>$/);
 });
 
 test("/ 와 노선번호 탭 조각은 정적 자산으로 흘러간다", async () => {
