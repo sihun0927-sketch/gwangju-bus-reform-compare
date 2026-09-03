@@ -169,6 +169,8 @@
       var 올라감 = !!(카드 && 고른 && 카드.dataset.journey === 고른.key);
       단추.classList.toggle("on", 올라감);
       단추.setAttribute("aria-pressed", 올라감 ? "true" : "false");
+      // 색만으로 알리면 색을 못 가리는 눈에는 아무 표시가 없는 것과 같다 — 글자도 바꾼다
+      단추.textContent = 올라감 ? "지도에 표시 중" : "지도에 표시";
     });
   }
 

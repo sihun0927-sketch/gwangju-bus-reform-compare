@@ -623,7 +623,11 @@ def test_장소_입력칸_둘은_자동완성을_부르고_후보를_고르면_�
     assert 'id="place-result"' in html
     assert (site / "place.js").exists()
     script = (site / "place.js").read_text(encoding="utf-8")
-    assert "/compare?from=" in script
+    assert "/compare?" in script
+    # 좌표뿐 아니라 고른 장소의 **이름**도 보낸다 — 카드 경로 줄의 양 끝이 「출발 지점」이 아니라
+    # 시민이 고른 곳이 되게 (CONTEXT 「경로 줄」)
+    for 칸 in ("from:", "to:", "fromName:", "toName:"):
+        assert 칸 in script, 칸
 
 
 # ── 노선 지도 (③ #36) ─────────────────────────────────────────────────────────

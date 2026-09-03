@@ -5,7 +5,7 @@
  * 규칙이 어디에 사는지는 그 넷의 머리말에 적혀 있고, 여기에는 **차례**와 카드가 안 나오는
  * 두 경우만 있다 — 두 지점이 도보권 안일 때와 도착지에 정류장이 없을 때.
  */
-import { metresBetween, point, walkableStops } from "./candidates.js";
+import { metresBetween, placeNames, point, walkableStops } from "./candidates.js";
 import { geometry } from "./geometry.js";
 import { key } from "./journey.js";
 import { NETWORKS } from "./network.js";
@@ -23,7 +23,8 @@ export function compare(params) {
   const 사이 = metresBetween(from, to);
   if (사이 <= WALK_RADIUS_M) return render.walkable();
 
-  return render.cardPair(NETWORKS.map((network) => 카드(network, from, to)));
+  const places = placeNames(params);
+  return render.cardPair(NETWORKS.map((network) => 카드(network, from, to, places)));
 }
 
 /**
@@ -33,7 +34,7 @@ export function compare(params) {
  * 「노선 조합이 다른 다른 경로 2개」다(CONTEXT 「다른 경로 카드」). 카드에는 키만 싣고 조각은
  * 시민이 「다른 경로 더 보기」를 누를 때 `/journey/{id}`가 만든다.
  */
-function 카드(network, from, to) {
+function 카드(network, from, to, places) {
   const 도착 = walkableStops(network, to);
   if (!도착.length) return render.outOfReach(network);
 
@@ -41,6 +42,7 @@ function 카드(network, from, to) {
   const [기본, ...나머지] = rank(journeys(network, 출발, 도착));
   if (!기본) return render.card(network, 기본);
   return render.card(network, 기본, {
+    places,
     key: key(network, 기본, from, to),
     geometry: geometry(network, 기본, from, to),
     alternatives: 나머지
