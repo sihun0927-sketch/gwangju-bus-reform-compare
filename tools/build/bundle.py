@@ -70,6 +70,7 @@ class Counts:
     route_stops: int    # 노선 × 방향 × 순번 × STATION_NUM 줄 수
     transfers: int      # 환승 도보 안 정류장 쌍 줄 수
     route_links: int    # 노선 쌍당 최단 환승 지점 줄 수
+    headways: int       # 배차간격이 붙은 노선 — 개편 전 110(순환01 빠짐), 개편 후 0
 
 
 @dataclass(frozen=True)
@@ -143,11 +144,21 @@ def make(
     canon: dict[str, str | None],
     renames: RenameDict,
     additions: list[str],
+    headways: dict[str, int],
 ) -> Bundle:
-    """노선안·`stops.csv`·명칭 사전·신설 정류소 → 번들 한 장.
+    """노선안·`stops.csv`·명칭 사전·신설 정류소·배차간격 → 번들 한 장.
 
     STATION_NUM에 못 잇는 이름이 있으면 그 목록을 담은 `BuildError`를 낸다.
     """
+    # 배차간격은 **개편 전에만** 붙인다. 228·419·518·1187은 이름이 두 노선망에 다 있어, 노선망을
+    # 안 가리고 이름으로만 찾으면 개편 후 카드가 개편 전 값을 제 것처럼 적는다
+    모르는_노선 = sorted(set(headways) - {r.name for r in before})
+    if 모르는_노선:
+        raise BuildError(
+            "배차간격 CSV의 노선을 개편 전 노선안에서 못 찾았습니다:\n  "
+            + "\n  ".join(모르는_노선)
+        )
+
     order = {s.station_num: i for i, s in enumerate(stops)}
     index = stop_index(stops, canon, renames)
 
@@ -158,8 +169,8 @@ def make(
             rid = route_id(network, r.name)
             if rid in routes:
                 raise BuildError(f"노선안에 같은 노선 이름이 두 번 있습니다: {rid}")
-            # 배차는 자리만 둔다 — 개편 전 자료가 아직 없다(스펙 Out of Scope)
-            routes[rid] = {"network": network, "name": r.name, "headway": None}
+            headway = headways.get(r.name) if network == BEFORE else None
+            routes[rid] = {"network": network, "name": r.name, "headway": headway}
             plans[rid] = {UP: r.up, DOWN: r.down}
 
     linked, unlinked = _link(plans, routes, index, set(additions), order)
@@ -215,6 +226,7 @@ def make(
             ),
             transfers=len(transfers),
             route_links=len(links),
+            headways=sum(1 for r in routes.values() if r["headway"] is not None),
         ),
     )
 

@@ -91,6 +91,7 @@ def build(
     facts = notes.collect(renames, load.read_removals(source), additions)
     stops = load.read_stops(source)
     canon = load.read_name_canon(_canon_path(source))
+    headways = load.read_headways(source)
 
     pairs, missing = branches.pairs(before, after, replacements)
     if missing:
@@ -100,7 +101,7 @@ def build(
         )
 
     # 번들은 `out/`을 지우기 전에 만들어 본다 — 이름을 못 이으면 지난번 조각을 남긴 채 멈춘다
-    made = bundle_json.make(before, after, stops, canon, renames, additions)
+    made = bundle_json.make(before, after, stops, canon, renames, additions, headways)
     # 노선 지도는 번들과 같은 이름 잇기를 쓴다. 다만 추정 좌표는 안 받는다(ADR-0007, `route_geometry`)
     index = bundle_json.stop_index(stops, canon, renames)
 
