@@ -1,7 +1,7 @@
 function selectedPlace(input) {
   const lat = input.dataset.lat;
   const lng = input.dataset.lng;
-  return lat && lng ? { lat, lng } : undefined;
+  return lat && lng ? { lat, lng, name: input.value } : undefined;
 }
 
 function compareWhenBothPlacesAreSelected() {
@@ -9,11 +9,15 @@ function compareWhenBothPlacesAreSelected() {
   const to = selectedPlace(document.querySelector("#to"));
   if (!from || !to || !window.htmx) return;
 
-  window.htmx.ajax(
-    "GET",
-    `/compare?from=${encodeURIComponent(`${from.lat},${from.lng}`)}&to=${encodeURIComponent(`${to.lat},${to.lng}`)}`,
-    { target: "#place-result", swap: "innerHTML" },
-  );
+  // 이름도 함께 보낸다 — 카드 경로 줄의 양 끝이 「출발 지점」이 아니라 시민이 고른 곳이 되게
+  // (CONTEXT 「경로 줄」). 좌표와 달리 이름은 경로 키에 없으므로 매개변수로만 간다
+  const 칸 = new URLSearchParams({
+    from: `${from.lat},${from.lng}`,
+    to: `${to.lat},${to.lng}`,
+    fromName: from.name,
+    toName: to.name,
+  });
+  window.htmx.ajax("GET", `/compare?${칸}`, { target: "#place-result", swap: "innerHTML" });
 }
 
 document.addEventListener("click", (event) => {
