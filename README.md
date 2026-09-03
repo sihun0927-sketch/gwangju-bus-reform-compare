@@ -14,9 +14,39 @@
 4. `data/README.md` — 원천 CSV 6개의 열과 행 수, 알아 둘 함정
 5. **모듈 지도** — https://claude.ai/code/artifact/6977a9d4-929e-40d8-a252-9620cb46f86b
    탭마다 두 장: 모듈 지도(화면 조각 → 화면 모듈 → 조각 → 만드는 곳(빌드 스크립트 / Worker) → 데이터, 정적/동적·용어·데이터 있음/예정)와
-   만드는 곳의 단계(단계별 입력·출력·테스트 경계). 구현·유지보수 때 보는 것
+   만드는 곳의 단계(단계별 입력·출력·테스트 경계). 구현·유지보수 때 보는 것. 같은 그림이 `docs/images/`에 PNG로 있다(아래)
 6. 화면 목업 — https://claude.ai/code/artifact/fbf89d71-17a6-4f49-b963-aa3eb506b539
-   (페이지 4장: 장소 탭 분할 · 노선번호 탭 분할 · 노선 변화 표 · 조각 출처 a vs b. 용어는 2026-09-03 확정본)
+   (페이지 4장: 장소 탭 분할 · 노선번호 탭 분할 · 노선 변화 표 · 조각 출처 a vs b. 용어는 2026-09-03 확정본). PNG는 아래
+
+## 그림 (캔버스 없이 볼 때)
+
+캔버스에서 렌더링한 PNG. 캔버스가 바뀌면 다시 뽑는다(`docs/images/README.md`).
+
+### 노선번호로 찾기
+
+![노선번호로 찾기 · 모듈 지도](docs/images/modmap-2-route-map.png)
+
+![노선번호로 찾기 · 빌드 스크립트 단계](docs/images/modmap-2-route-build.png)
+
+![노선번호로 찾기 · 초기 상태 목업](docs/images/mock-2-route-initial.png)
+
+![노선번호로 찾기 · 결과 상태 목업](docs/images/mock-2-route-result.png)
+
+![노선 변화 표 · 문흥18](docs/images/mock-3-stop-diff.png)
+
+### 장소로 찾기
+
+![장소로 찾기 · 모듈 지도](docs/images/modmap-1-place-map.png)
+
+![장소로 찾기 · Worker 단계](docs/images/modmap-1-place-worker.png)
+
+![장소로 찾기 · 초기 상태 목업](docs/images/mock-1-place-initial.png)
+
+![장소로 찾기 · 결과 상태 목업](docs/images/mock-1-place-result.png)
+
+### 조각 출처 a vs b (Q6)
+
+![조각 출처 a vs b](docs/images/mock-4-fragment-source.png)
 
 ## 상태 (2026-09-02)
 
