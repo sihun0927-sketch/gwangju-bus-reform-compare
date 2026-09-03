@@ -24,6 +24,8 @@ from tools.build import BuildError, build
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 SOURCE = DATA / "source"
+# 껍데기의 <script> 태그. 여는 태그만 센다
+SCRIPT_TAG = r"<script\b[^>]*>"
 ALIGN_TABLE = DATA / "기종점정렬표.csv"
 
 문흥18 = ("문흥18", "기본", "간선18", "기본.html")
@@ -541,8 +543,8 @@ def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조�
 
 
 def test_껍데기의_스크립트는_htmx와_확장과_우리_스크립트_둘뿐이다(site: Path) -> None:
-    """확장은 htmx 뒤에 와야 켜진다. 우리 스크립트는 장소 탭 place.js와 두 탭 공용 map.js 둘이다."""
-    태그 = re.findall(r"<script\b[^>]*>", index(site))
+    """확장은 htmx 뒤에 와야 켜진다. 우리 스크립트는 장소 탭 place.js와 두 탭 공용 map.js 둘이다(§7-3 Q1)."""
+    태그 = re.findall(SCRIPT_TAG, index(site))
     assert len(태그) == 4
     htmx태그, 확장태그, 장소태그, 지도태그 = 태그
     assert "htmx.org" in htmx태그
@@ -551,6 +553,28 @@ def test_껍데기의_스크립트는_htmx와_확장과_우리_스크립트_둘�
     assert 'src="place.js"' in 장소태그
     assert 'src="map.js"' in 지도태그
     assert (site / "map.js").exists()
+
+
+def test_Kakao_JS_키가_없으면_지도_SDK를_안_싣는다(site: Path) -> None:
+    """JS 키는 리포에 없다(ADR-0005). 없는 채로 빌드하면 태그가 아예 없고 지도만 안 뜬다."""
+    assert "dapi.kakao.com" not in index(site)
+    assert "appkey" not in index(site)
+
+
+def test_Kakao_JS_키를_주면_그_키로_SDK_태그가_박힌다(tmp_path: Path) -> None:
+    build(SOURCE, tmp_path / "out", tmp_path / "data.json", kakao_js_key="열쇠값")
+    html = (tmp_path / "out" / "index.html").read_text(encoding="utf-8")
+    태그 = [줄 for 줄 in re.findall(SCRIPT_TAG, html) if "dapi.kakao.com" in 줄]
+    assert len(태그) == 1
+    assert "appkey=%EC%97%B4%EC%87%A0%EA%B0%92" in 태그[0]
+    assert "autoload=false" in 태그[0]   # `defer`로 싣기 때문에 `map`이 직접 기다린다
+
+
+def test_지도_스크립트는_좌표_배열만_받는다(site: Path) -> None:
+    """노선번호 탭의 노선 지도가 나중에 같은 함수를 쓸 수 있어야 한다(이슈 #27)."""
+    script = (site / "map.js").read_text(encoding="utf-8")
+    assert "window.busMap" in script
+    assert "function draw(자리, 선들)" in script
 
 
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
@@ -735,23 +759,6 @@ def test_대체_노선이_없는_카드에는_지도가_없다(site: Path) -> No
     html = card(site, "두암181")
     assert "route-map" not in html
     assert "route-geometry" not in html
-
-
-def test_KAKAO_JS_KEY가_없으면_지도_SDK를_안_부른다(site: Path) -> None:
-    """키가 없어도 빌드는 성공한다. 리포에 키를 두지 않는다(ADR-0005)."""
-    assert "dapi.kakao.com" not in index(site)
-
-
-def test_KAKAO_JS_KEY가_있으면_appkey에_그_값이_들어간다(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("KAKAO_JS_KEY", "테스트용키")
-    build(SOURCE, tmp_path / "out", tmp_path / "data.json")
-    html = (tmp_path / "out" / "index.html").read_text(encoding="utf-8")
-    태그 = re.search(r"<script[^>]*dapi\.kakao\.com[^>]*>", html)
-    assert 태그, "Kakao 지도 SDK 태그를 못 찾았습니다"
-    assert "appkey=테스트용키" in 태그.group(0)
-    assert "autoload=false" in 태그.group(0)
 
 
 def test_map_js는_kakao가_없으면_조용히_끝난다(site: Path) -> None:

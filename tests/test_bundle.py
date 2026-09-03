@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from tools.build import BuildError, build
+from tools.build.bundle import TRANSFER_WALK_M
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -70,10 +72,6 @@ def test_명령줄로도_번들_자리를_줄_수_있다(tmp_path: Path) -> None
     assert 끝.returncode == 0, 끝.stderr
     assert 번들.exists()
     assert "번들 JSON" in 끝.stdout
-
-
-def test_표_셋과_좌표_범위가_있다(bundle: dict) -> None:
-    assert set(bundle) == {"stops", "routes", "route_stops", "bbox"}
 
 
 def test_routes가_111더하기_119이고_노선망_표시가_있다(bundle: dict) -> None:
@@ -252,3 +250,118 @@ def test_번들을_못_만들면_지난번_조각을_남긴다(tmp_path: Path) -
     with pytest.raises(BuildError):
         build(data / "source", out, tmp_path / "data.json")
     assert (out / "index.html").exists()
+
+
+def 이름별_줄(bundle: dict, name: str) -> set[str]:
+    return {i for i, v in bundle["stops"].items() if v["name"] == name}
+
+
+def test_표_다섯과_좌표_범위가_있다(bundle: dict) -> None:
+    assert set(bundle) == {
+        "stops", "routes", "route_stops", "transfers", "route_links", "bbox",
+    }
+
+
+def test_transfers의_거리는_모두_환승_도보_안이다(bundle: dict) -> None:
+    """350m를 넘는 쌍이 하나라도 있으면 환승이 아닌 것을 환승으로 잇는다."""
+    거리 = [m for _, _, m in bundle["transfers"]]
+    assert 거리 and max(거리) <= TRANSFER_WALK_M
+    assert min(거리) >= 0
+    # 0m 쌍 34개는 진짜다 — `stops.csv`에 좌표가 똑같은 다른 줄이 있고(화순서라아파트 ARS 셋),
+    # 종점의 추정 좌표는 이웃이 한쪽뿐이라 그 이웃 자리에 그대로 놓인다. 같은 줄끼리만 아니면 된다
+    assert all(a != b for a, b, _ in bundle["transfers"])
+
+
+def test_transfers는_노선안이_지나는_줄끼리만_잇는다(bundle: dict) -> None:
+    """아무 버스도 안 서는 줄을 환승 후보로 두면 「갈아탈 곳」이 못 타는 곳이 된다."""
+    쓰인_줄 = {i for v in bundle["route_stops"].values() for side in v.values()
+              for x in side for i in x["stops"]}
+    밖 = [쌍 for 쌍 in bundle["transfers"] if 쌍[0] not in 쓰인_줄 or 쌍[1] not in 쓰인_줄]
+    assert 밖 == []
+
+
+def test_transfers에_같은_쌍이_두_번_없다(bundle: dict) -> None:
+    쌍 = [frozenset((a, b)) for a, b, _ in bundle["transfers"]]
+    assert len(쌍) == len(set(쌍))
+
+
+def test_아는_정류장_쌍의_환승_도보_거리가_실제_값과_맞는다(bundle: dict) -> None:
+    """전남대사거리(서) 길 양쪽 두 줄(ARS 4351·4350)은 43m 떨어져 있다.
+
+    위도 차 0.00018362°(20.4m)와 경도 차 0.00041704°(위도 35.17°에서 37.9m)의 빗변이
+    43.0m다 — 번들이 쓰는 것과 다른 셈으로 낸 값이라 공식이 바뀌면 이 검사가 걸린다.
+    """
+    거리 = {
+        (a, b): m for a, b, m in bundle["transfers"]
+    }
+    서쪽 = sorted(이름별_줄(bundle, "전남대사거리(서)"))
+    assert len(서쪽) == 2
+    잰_값 = 거리.get(tuple(서쪽)) or 거리.get(tuple(reversed(서쪽)))
+    assert 잰_값 == 43, f"{서쪽} → {잰_값}"
+
+
+def test_route_links가_노선_쌍당_한_줄이다(bundle: dict) -> None:
+    """쌍당 최단 1개다(ADR-0008 결정 1) — 두 줄이면 번들이 그만큼 커진다."""
+    쌍 = [frozenset((a, b)) for a, b, *_ in bundle["route_links"]]
+    assert 쌍 and len(쌍) == len(set(쌍))
+    assert all(a != b for a, b, *_ in bundle["route_links"]), "자기 자신과는 환승하지 않는다"
+
+
+def test_route_links는_한_노선망_안에서만_잇는다(bundle: dict) -> None:
+    """경로는 늘 한 노선망 안에서만 찾는다(CONTEXT 「노선망」)."""
+    망 = bundle["routes"]
+    다른_망 = [(a, b) for a, b, *_ in bundle["route_links"]
+              if 망[a]["network"] != 망[b]["network"]]
+    assert 다른_망 == []
+
+
+def test_route_links의_환승_지점이_그_노선의_정류장이다(bundle: dict) -> None:
+    """엉뚱한 줄이 실리면 화면에는 이름이 나오는데 그 노선은 거기 서지 않는다."""
+    노선_줄 = {
+        r: {i for side in v.values() for x in side for i in x["stops"]}
+        for r, v in bundle["route_stops"].items()
+    }
+    어긋난 = [
+        (a, b) for a, b, here, there, _ in bundle["route_links"]
+        if here not in 노선_줄[a] or there not in 노선_줄[b]
+    ]
+    assert 어긋난 == []
+
+
+def test_route_links의_거리는_transfers에_있거나_같은_줄이라_0이다(bundle: dict) -> None:
+    """환승 지점은 같은 줄(0m)이거나 350m 안 쌍이다. 그 밖의 값은 어디서도 나올 수 없다."""
+    쌍 = {frozenset((a, b)): m for a, b, m in bundle["transfers"]}
+    for a, b, here, there, m in bundle["route_links"]:
+        if here == there:
+            assert m == 0, (a, b, here)
+        else:
+            assert 쌍.get(frozenset((here, there))) == m, (a, b, here, there, m)
+
+
+def test_route_links가_그_노선_쌍의_최단_환승_지점이다(bundle: dict) -> None:
+    """노선 하나를 골라 손으로 다시 세어 본다 — 「최단」이 실제로 최단인지."""
+    노선_줄 = {
+        r: {i for side in v.values() for x in side for i in x["stops"]}
+        for r, v in bundle["route_stops"].items()
+    }
+    가까운: dict[str, dict[str, int]] = {}
+    for a, b, m in bundle["transfers"]:
+        가까운.setdefault(a, {})[b] = m
+        가까운.setdefault(b, {})[a] = m
+
+    골라본 = [x for x in bundle["route_links"] if x[0] == "before:문흥18"]
+    assert len(골라본) > 10, 골라본
+    for a, b, _here, _there, m in 골라본:
+        최단 = min(
+            0 if i == j else 가까운.get(i, {}).get(j, 10**9)
+            for i in 노선_줄[a]
+            for j in 노선_줄[b]
+        )
+        assert m == 최단, (a, b, m, 최단)
+
+
+def test_빌드_상수가_worker_rules와_같다() -> None:
+    """빌드는 파이썬이라 `rules.js`를 import할 수 없다. 값이 어긋나면 여기서 걸린다."""
+    글 = (ROOT / "worker" / "rules.js").read_text(encoding="utf-8")
+    적힌 = re.search(r"TRANSFER_WALK_M\s*=\s*(\d+)", 글)
+    assert 적힌 and int(적힌.group(1)) == TRANSFER_WALK_M

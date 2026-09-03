@@ -1,11 +1,13 @@
 """명령줄 진입점 — `python -m tools.build [source] [out] [bundle]`."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 from . import BuildError, build
 from .bundle import DEFAULT_PATH as DEFAULT_BUNDLE
+from .shell import KAKAO_JS_KEY_ENV
 from .terminus_align import MANUAL_STAGES, STAGE_NAME, STAGE_OVERLAP
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -20,8 +22,11 @@ def main(argv: list[str]) -> int:
     source = Path(argv[0]) if argv else DEFAULT_SOURCE
     out = Path(argv[1]) if len(argv) > 1 else DEFAULT_OUT
     bundle = Path(argv[2]) if len(argv) > 2 else DEFAULT_BUNDLE
+    # Kakao JS 키는 리포에 없다 — Pages 환경 변수로 들어오고 빌드가 껍데기에 박는다(ADR-0005).
+    # 없으면 지도만 안 뜨고 나머지는 그대로다. 읽는 곳은 환경 변수 하나뿐이라(`.env` 파일을 읽는
+    # 코드는 없다) 로컬에서는 명령 앞에 `KAKAO_JS_KEY=…`를 붙인다
     try:
-        result = build(source, out, bundle)
+        result = build(source, out, bundle, kakao_js_key=os.environ.get(KAKAO_JS_KEY_ENV, ""))
     except BuildError as e:
         print(f"빌드를 멈춥니다.\n{e}", file=sys.stderr)
         return 1
@@ -44,6 +49,7 @@ def main(argv: list[str]) -> int:
     print(
         f"번들 JSON — 정류장 {번들.stops}줄(추정 좌표 {번들.estimated})"
         f" · 노선 {번들.routes} · 노선별 정류장 {번들.route_stops}줄"
+        f" · 환승 쌍 {번들.transfers}줄 · 노선 쌍 환승 지점 {번들.route_links}줄"
         f" · {result.bundle_bytes / 1024 / 1024:.2f}MB를 {result.bundle}에 썼습니다."
     )
     return 0
