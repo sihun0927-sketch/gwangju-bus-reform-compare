@@ -57,6 +57,10 @@ Worker 코드는 아직 없다(노선번호 탭은 정적 파일만으로 돈다
 대시보드 빌드 설정(리포 밖, 한 번만): 빌드 명령 `python -m tools.build` · 배포 명령 `npx wrangler deploy` · 루트 `/`.
 로컬 확인: `python -m tools.build && npx wrangler deploy --dry-run`.
 
+빌드 환경 변수 `KAKAO_JS_KEY`(Kakao JavaScript 키, ADR-0005)가 있으면 껍데기에 지도 SDK 태그가 들어간다.
+없으면 빌드는 그대로 성공하고 노선 지도 자리에 「지도를 불러오지 못했습니다」 한 줄만 남는다. **키는 리포에
+없다** — Cloudflare 설정에 둔다. 로컬에서 지도를 보려면 `KAKAO_JS_KEY=… python -m tools.build`.
+
 ## 빌드와 테스트
 
 ```
@@ -73,6 +77,8 @@ npm run deploy:dry        # wrangler deploy --dry-run
 **노선번호 탭이 정적 파일로 돈다.** `python -m tools.build`가 `out/`에 껍데기 `index.html` 한 장(노선 개편 목록 표 103줄)과
 노선 변화 카드 103개 · 노선 변화 표 205개를 쓴다. `out/`을 정적 서버로 열면 목록의 한 줄을 눌러 카드를,
 카드의 버튼을 눌러 표를 새로고침 없이 바꿀 수 있다 — Worker도 D1도 없이(ADR-0001·0002).
+표 조각마다 상행 좌표가 실려 있어 카드 위 노선 지도가 개편 전(굵은 초록)과 대체 노선(가는 파랑)을 겹쳐 그린다 —
+그리는 브라우저 코드는 `out/map.js` 하나뿐이고, Kakao JS 키가 있는 환경에서만 뜬다(ADR-0005).
 
 **장소 탭은 데이터가 먼저 들어왔다.** 같은 빌드가 `worker/data.json`도 쓴다 — 정류장 4,803줄(`stops.csv`
 4,746 + 추정 좌표 57) · 노선 230(개편 전 111 + 개편 후 119) · 노선별 정류장 42,390줄, 압축 전 1.53MB.
