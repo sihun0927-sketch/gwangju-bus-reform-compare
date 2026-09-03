@@ -177,7 +177,7 @@ data/source/*.csv (시 공표 6 + stops.csv 좌표 4,746개)   data/name_canon.j
 | Q1 | 번호로 좁히기 | `<datalist>` 103개 + htmx `path-params`. 표 필터 없음, 우리 스크립트 없음 | — |
 | Q2 | 후보 한 줄 | 값 = 번호, 설명 = 대체 노선 이름들. 목록에 없는 값은 안내문 한 줄 | — |
 | Q3 | 통폐합 비고 | 「A(B)」의 B가 개편 전 열에 나오는 줄에 "통폐합: A에 흡수". 노선안은 고쳐 읽지 않음 | 0003 |
-| Q4 | 기종점정렬표 18행 | 세션 끝에 표로 뽑아 한 줄씩 확인 | — |
+| Q4 | 기종점정렬표 18행 | 겹침이 0~9/50곳뿐이라 값 그대로 두고 「확인」 열을 채움(같은 날 완료) | — |
 | Q5 | 노선 지도 | 장소 탭보다 먼저 짓는다 | — |
 | Q6 | 좌표 JSON 위치 | 카드가 아니라 표 조각 ⑦ (표 하나 = 지도 하나) | — |
 | Q7·8 | 지도 그림 | 상행만. 개편 전 굵은 초록 아래 + 대체 노선 가는 파랑 위. 점 유지 회색·제외 빨강·추가 파랑. 표 색은 그대로 | — |
@@ -202,7 +202,7 @@ data/source/*.csv (시 공표 6 + stops.csv 좌표 4,746개)   data/name_canon.j
 6. ~~정류장 좌표를 반입한다~~ (2026-09-03 완료, ADR-0007 — `data/source/stops.csv` 4,746개·결측 0)
 7. ~~장소 탭 Worker 그릴링~~ (2026-09-03 완료, §7 표 · ADR-0008)
 8. 노선번호 탭 잔여(§7-3, 2026-09-04) — PR 넷: ① `<datalist>` + htmx `path-params` → ② 통폐합 비고 →
-   ③ 노선 지도 `route_geometry` + `map` → ④ 기종점정렬표 18행 확인 + 캔버스 `modmap-2-route-map` PNG 갱신
+   ③ 노선 지도 `route_geometry` + `map` → ④ 캔버스 `modmap-2-route-map` PNG 갱신(18행 확인은 완료)
 9. 빌드 `bundle` 단계 — transfers·route_links를 만들고 `worker/data.json` 크기와 줄 수를 실측한다(다른 세션에서 진행 중)
 10. Worker 셋(`places` · `compare` · `journey`). `map`은 8-③에서 먼저 생긴다. `compare`의 CPU 시간이 첫 실측
 11. 캔버스·PNG의 D1·판정 줄을 지운다
