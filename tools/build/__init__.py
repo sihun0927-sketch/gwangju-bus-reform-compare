@@ -6,7 +6,8 @@
     python -m tools.build                    # data/source → out/
     python -m tools.build data/source out    # 경로를 직접 줄 때
 
-이번 범위는 노선 변화 표 조각 205개와 노선 변화 카드 103개다. 껍데기는 다음 티켓이다.
+이번 범위는 껍데기 `index.html` 한 장(노선 개편 목록 표 103줄을 품는다)과
+노선 변화 표 조각 205개, 노선 변화 카드 103개다. 장소 탭은 자리만 있다.
 """
 from __future__ import annotations
 
@@ -14,7 +15,9 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import branches, load, notes, render, route_card, stop_match, terminus_align
+from . import (
+    branches, load, notes, render, route_card, route_list, shell, stop_match, terminus_align,
+)
 from .errors import BuildError
 
 __all__ = ["build", "BuildError", "Result"]
@@ -77,6 +80,9 @@ def build(source: Path, out: Path, *, align_table: Path | None = None) -> Result
     # 카드는 `out/`을 지우기 전에 다 만들어 본다 — 입력이 틀리면 반쯤 쓰다 만 자리를 남기지 않는다
     cards = [route_card.card(row, before_siblings.get(row.before, []), after) for row in replacements]
 
+    if not shell.CSS_SOURCE.exists():
+        raise BuildError(f"화면 CSS가 없습니다: {shell.CSS_SOURCE}")
+
     _clear(out, source)
     stages: dict[str, int] = {}
     tables: dict[tuple[str, str, str, str], str] = {}
@@ -88,7 +94,10 @@ def build(source: Path, out: Path, *, align_table: Path | None = None) -> Result
     for card in cards:
         # 카드는 자기 기본 표를 통째로 품는다 — 열자마자 버튼을 누르기 전에도 답이 보인다
         html = render.route_change_card(card, tables[card.default] if card.default else "")
-        _write(out / "route" / f"{card.before.number}.html", html)
+        _write(out / render.card_url(card.before.number), html)
+
+    _write(out / "index.html", render.index_page(route_list.rows(cards)))
+    shutil.copyfile(shell.CSS_SOURCE, out / shell.CSS)
 
     return Result(out=out, tables=len(pairs), cards=len(cards), stages=stages)
 
