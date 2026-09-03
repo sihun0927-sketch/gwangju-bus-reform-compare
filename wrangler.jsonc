@@ -1,6 +1,7 @@
 // Cloudflare Workers 배포 설정. Worker 코드 없이 `out/`만 정적 자산으로 올린다.
 // 대시보드 빌드 설정: 빌드 명령 `python -m tools.build`, 배포 명령 `npx wrangler deploy`.
-// 장소 탭 Worker(ADR-0001)가 생기면 여기에 "main"을 더한다.
+// 장소 탭 Worker(ADR-0008)가 생기면 "main": "worker/index.js"와
+// "run_worker_first": ["/places*", "/compare*", "/journey/*"]를 더한다. D1 바인딩은 없다.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "gwangju-bus-reform-compare",
