@@ -8,6 +8,7 @@ from html import escape
 
 from .branches import Pair
 from .load import Route
+from .notes import Note
 from .route_card import Card, Choice, Key, NO_REPLACEMENT
 from .route_list import Row
 from .shell import RESULT_ID, page as shell_page
@@ -62,6 +63,12 @@ def _cells(line: Line | None) -> str:
     return f'<td class="{cls}">{escape(line.before)}</td><td class="{cls}">{escape(line.after)}</td>'
 
 
+def _note_cell(note: Note) -> str:
+    """비고 칸. 사유 문장은 `title`이라 마우스를 올렸을 때만 보인다(ADR-0003 개정)."""
+    title = f' title="{escape(note.title)}"' if note.title else ""
+    return f'<td class="note"{title}>{escape(note.text)}</td>'
+
+
 def route_change_table(
     pair: Pair,
     up: list[Line],
@@ -70,7 +77,7 @@ def route_change_table(
     down_counts: dict[str, int],
     *,
     flipped: bool,
-    note: str = "",
+    row_notes: list[Note],
 ) -> str:
     """노선 변화 표 조각 하나. 제목은 「<번호(방면)> 노선 변화」."""
     out = [
@@ -85,13 +92,14 @@ def route_change_table(
         "<thead><tr>" + "".join(f"<th>{escape(c)}</th>" for c in COLUMNS) + "</tr></thead>",
         "<tbody>",
     ]
-    for i in range(max(len(up), len(down))):
-        cell_note = note if i == 0 else ""
+    # 줄 수는 비고 목록이 정한다 — `notes.for_rows`가 이미 max(상행, 하행)으로 세어 두었다
+    for i, note in enumerate(row_notes):
         out.append(
             f'<tr><td class="index">{i + 1}</td>'
             + _cells(up[i] if i < len(up) else None)
             + _cells(down[i] if i < len(down) else None)
-            + f'<td class="note">{escape(cell_note)}</td></tr>'
+            + _note_cell(note)
+            + "</tr>"
         )
     out += ["</tbody>", "</table>"]
     if flipped:
