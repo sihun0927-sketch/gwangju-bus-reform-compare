@@ -7,6 +7,7 @@
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
 
 # 빌드 산출물
 out/
