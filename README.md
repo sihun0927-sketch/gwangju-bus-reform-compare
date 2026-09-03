@@ -76,8 +76,9 @@ npm run deploy:dry        # wrangler deploy --dry-run
 
 **장소 탭은 데이터가 먼저 들어왔다.** 같은 빌드가 `worker/data.json`도 쓴다 — 정류장 4,803줄(`stops.csv`
 4,746 + 추정 좌표 57) · 노선 230(개편 전 111 + 개편 후 119) · 노선별 정류장 42,390줄, 압축 전 1.53MB.
-Worker(`worker/index.js`)는 아직 뼈대라 `/places` · `/compare` · `/journey/…`가 「준비 중」 조각을
-돌려주고, 나머지 주소는 전과 똑같이 정적 자산으로 나간다. 화면의 입력칸도 아직 자리뿐이다.
+ADR-0008이 정한 표 다섯 중 **셋까지**다 — 환승 쌍(transfers)과 노선 쌍별 환승 지점(route_links)은
+아직 없다. Worker(`worker/index.js`)도 아직 뼈대라 `/places` · `/compare` · `/journey/…`가 「준비 중」
+조각을 돌려주고, 나머지 주소는 전과 똑같이 정적 자산으로 나간다. 화면의 입력칸도 아직 자리뿐이다.
 설계는 2026-09-03에 닫혔다 — `docs/architecture.md` §7 표와 ADR-0008.
 
 번호 잇기 규칙은 ADR-0006으로 닫혔고 못 찾는 쌍 0이다. 정류장 좌표도 들어왔다 —

@@ -15,6 +15,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+# `build`의 셋째 인자 이름이 `bundle`이라 모듈은 별칭으로 받는다(진입점 모양은 이슈 #23이 정했다)
 from . import (
     branches, bundle as bundle_json, load, notes, rename_dict, render, route_card, route_list,
     shell, stop_match, terminus_align,
@@ -34,7 +35,7 @@ class Result:
     stages: dict[str, int]
     bundle: Path
     bundle_bytes: int
-    bundle_counts: bundle_json.Bundle
+    bundle_counts: bundle_json.Counts
 
 
 def _align_table_path(source: Path, given: Path | None) -> Path:
@@ -59,20 +60,17 @@ def _clear(out: Path, source: Path) -> None:
     out.mkdir(parents=True)
 
 
-def build(
-    source: Path,
-    out: Path,
-    bundle: Path | None = None,
-    *,
-    align_table: Path | None = None,
-) -> Result:
+def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = None) -> Result:
     """`source`의 CSV를 읽어 `out/`에 정적 조각을, `bundle`에 번들 JSON을 쓴다.
+
+    번들 자리에 기본값을 두지 않는다 — 기본값(`worker/data.json`)은 명령줄의 것이고, 여기에
+    두면 자리를 안 준 호출이 작업 트리의 배포 산출물을 조용히 덮어쓴다.
 
     번호를 못 잇거나, 기·종점 정렬표에 사람이 안 적은 쌍이 있거나, 노선안 정류장 이름을
     `stops.csv`의 줄에 못 이으면 목록을 담은 `BuildError`를 낸다.
     """
     source, out = Path(source).resolve(), Path(out).resolve()
-    bundle_path = Path(bundle).resolve() if bundle is not None else bundle_json.DEFAULT_PATH
+    bundle_path = Path(bundle).resolve()
     before = load.read_before(source)
     after = load.read_after(source)
     replacements = load.read_replacements(source)
@@ -130,7 +128,7 @@ def build(
 
     return Result(
         out=out, tables=len(pairs), cards=len(cards), stages=stages,
-        bundle=bundle_path, bundle_bytes=written, bundle_counts=made,
+        bundle=bundle_path, bundle_bytes=written, bundle_counts=made.counts,
     )
 
 

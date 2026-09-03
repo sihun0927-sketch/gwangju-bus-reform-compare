@@ -42,6 +42,14 @@ def run_cli(data: Path, out: Path, bundle: Path) -> subprocess.CompletedProcess[
     )
 
 
+def 이름_하나를_없는_것으로(data: Path) -> None:
+    """개편 후 노선안의 정류장 하나를 stops.csv에도 신설 CSV에도 없는 이름으로 바꾼다."""
+    노선안 = data / "source" / "광주권역 개편후 노선안.csv"
+    바뀐 = 노선안.read_text(encoding="utf-8-sig").replace("> 문화육교 >", "> 없는정류장 >", 1)
+    assert "없는정류장" in 바뀐
+    노선안.write_text(바뀐, encoding="utf-8-sig")
+
+
 def route_stops(bundle: dict, route: str) -> list[dict]:
     """노선 하나의 상행·하행 정류장을 순서대로 이어 붙인 것."""
     묶음 = bundle["route_stops"][route]
@@ -218,11 +226,7 @@ def test_노선안에_없는_이름을_넣으면_멈추고_그_이름을_낸다(
     """조용히 건너뛰면 그 정류장은 지도에서만 사라지는 것이 아니라 경로 탐색에서 통째로 없어진다."""
     data = tmp_path / "data"
     shutil.copytree(DATA, data)
-    노선안 = data / "source" / "광주권역 개편후 노선안.csv"
-    노선안.write_text(
-        노선안.read_text(encoding="utf-8-sig").replace("> 문화육교 >", "> 없는정류장 >", 1),
-        encoding="utf-8-sig",
-    )
+    이름_하나를_없는_것으로(data)
     끝 = run_cli(data, tmp_path / "out", tmp_path / "data.json")
     assert 끝.returncode == 1
     assert "없는정류장" in 끝.stderr
@@ -232,11 +236,7 @@ def test_신설_정류소도_명칭_변경도_아닌_이름은_추정하지_않�
     """빠진 좌표를 추정으로 덮으면 자료가 틀렸다는 사실이 화면에서 안 보인다."""
     data = tmp_path / "data"
     shutil.copytree(DATA, data)
-    노선안 = data / "source" / "광주권역 개편후 노선안.csv"
-    노선안.write_text(
-        노선안.read_text(encoding="utf-8-sig").replace("> 문화육교 >", "> 없는정류장 >", 1),
-        encoding="utf-8-sig",
-    )
+    이름_하나를_없는_것으로(data)
     with pytest.raises(BuildError) as 오류:
         build(data / "source", tmp_path / "out", tmp_path / "data.json")
     assert "없는정류장" in str(오류.value)
@@ -248,11 +248,7 @@ def test_번들을_못_만들면_지난번_조각을_남긴다(tmp_path: Path) -
     shutil.copytree(DATA, data)
     out = tmp_path / "out"
     build(data / "source", out, tmp_path / "data.json")
-    노선안 = data / "source" / "광주권역 개편후 노선안.csv"
-    노선안.write_text(
-        노선안.read_text(encoding="utf-8-sig").replace("> 문화육교 >", "> 없는정류장 >", 1),
-        encoding="utf-8-sig",
-    )
+    이름_하나를_없는_것으로(data)
     with pytest.raises(BuildError):
         build(data / "source", out, tmp_path / "data.json")
     assert (out / "index.html").exists()

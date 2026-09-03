@@ -40,15 +40,62 @@ ESTIMATED_PREFIX = "est:"
 ESTIMATED_DIGITS = 8
 
 
-@dataclass(frozen=True)
-class Bundle:
-    """번들 한 장과, 명령줄이 찍고 실측 수치(architecture §6)와 견줄 숫자들."""
+# 노선 → 방향 → 정류장 이름 차례. 노선안 CSV가 준 것 그대로이고, 이름을 줄에 잇기 전 모습이다
+Plans = dict[str, dict[str, tuple[str, ...]]]
 
-    data: dict
+
+@dataclass(frozen=True)
+class Counts:
+    """명령줄이 찍고 실측 수치(architecture §6)와 견줄 숫자들."""
+
     stops: int          # stops 줄 수 — `stops.csv` 4,746 + 추정 57
     estimated: int      # 그중 추정 좌표
     routes: int         # 개편 전 111 + 개편 후 119
     route_stops: int    # 노선 × 방향 × 순번 × STATION_NUM 줄 수
+
+
+@dataclass(frozen=True)
+class Bundle:
+    """번들 한 장과 그 숫자들."""
+
+    data: dict
+    counts: Counts
+
+
+@dataclass(frozen=True)
+class StopIndex:
+    """이름 하나를 `stops.csv`의 줄로 바꾸는 데 드는 것 전부.
+
+    넷이 늘 같이 다녀서 한 타입으로 묶었다. 잇는 길이 늘면(개편 후 BIS가 열려 신설 정류장에
+    진짜 좌표가 오면) 여기만 는다.
+    """
+
+    by_name: dict[str, list[Stop]]
+    by_ars: dict[str, list[Stop]]
+    canon: dict[str, str | None]
+    renames: RenameDict
+
+    def resolve(self, name: str) -> list[Stop]:
+        """노선안 이름 하나 → 그 이름의 `stops.csv` 줄 전부. 못 이으면 빈 목록.
+
+        잇는 길은 둘이다.
+
+        1. 이름 그대로. 표기가 어긋나면 `name_canon.json`이 맞춘다(ADR-0007).
+        2. 개편 후 새 이름이면 명칭 변경 CSV가 적어 둔 **ID**의 줄. 이름으로 되돌리지 않는 까닭은
+           옛 이름 하나가 새 이름 둘로 갈릴 때 어느 줄이 어느 쪽인지 이름으로는 못 가리기 때문이다.
+        """
+        fixed = self.canon.get(name, name)
+        if fixed and fixed in self.by_name:
+            return self.by_name[fixed]
+        return [
+            row
+            for ars in sorted(self.renames.new_to_ars.get(fixed or name, ()))
+            for row in self.by_ars.get(ars, ())
+        ]
+
+    def coordinateless(self, name: str, additions: set[str]) -> bool:
+        """좌표가 없는 것이 **확인된** 이름인가 — 신설 정류소이거나 `name_canon.json`이 `null`이라 적었거나."""
+        return name in additions or self.canon.get(name, name) is None
 
 
 def route_id(network: str, name: str) -> str:
@@ -69,15 +116,16 @@ def make(
     STATION_NUM에 못 잇는 이름이 있으면 그 목록을 담은 `BuildError`를 낸다.
     """
     order = {s.station_num: i for i, s in enumerate(stops)}
-    rows_by_name: dict[str, list[Stop]] = {}
-    rows_by_ars: dict[str, list[Stop]] = {}
+    by_name: dict[str, list[Stop]] = {}
+    by_ars: dict[str, list[Stop]] = {}
     for s in stops:
-        rows_by_name.setdefault(s.name, []).append(s)
+        by_name.setdefault(s.name, []).append(s)
         if s.ars_id:
-            rows_by_ars.setdefault(s.ars_id, []).append(s)
+            by_ars.setdefault(s.ars_id, []).append(s)
+    index = StopIndex(by_name=by_name, by_ars=by_ars, canon=canon, renames=renames)
 
     routes: dict[str, dict] = {}
-    plans: dict[str, dict[str, tuple[str, ...]]] = {}
+    plans: Plans = {}
     for network, rows in ((BEFORE, before), (AFTER, after)):
         for r in rows:
             rid = route_id(network, r.name)
@@ -87,9 +135,7 @@ def make(
             routes[rid] = {"network": network, "name": r.name, "headway": None}
             plans[rid] = {UP: r.up, DOWN: r.down}
 
-    linked, unlinked = _link(
-        plans, routes, rows_by_name, rows_by_ars, canon, renames, set(additions), order
-    )
+    linked, unlinked = _link(plans, routes, index, set(additions), order)
     if unlinked:
         raise BuildError(
             "노선안 정류장 이름을 stops.csv의 줄에 못 이었습니다"
@@ -125,12 +171,14 @@ def make(
     }
     return Bundle(
         data=data,
-        stops=len(out_stops),
-        estimated=len(estimated),
-        routes=len(routes),
-        route_stops=sum(
-            len(x["stops"]) for sides in route_stops.values() for side in sides.values()
-            for x in side
+        counts=Counts(
+            stops=len(out_stops),
+            estimated=len(estimated),
+            routes=len(routes),
+            route_stops=sum(
+                len(x["stops"]) for sides in route_stops.values() for side in sides.values()
+                for x in side
+            ),
         ),
     )
 
@@ -143,38 +191,10 @@ def write(path: Path, bundle: Bundle) -> int:
     return len(text.encode("utf-8"))
 
 
-def _resolve(
-    name: str,
-    rows_by_name: dict[str, list[Stop]],
-    rows_by_ars: dict[str, list[Stop]],
-    canon: dict[str, str | None],
-    renames: RenameDict,
-) -> list[Stop]:
-    """노선안 이름 하나 → 그 이름의 `stops.csv` 줄 전부. 못 이으면 빈 목록.
-
-    잇는 길은 둘이다.
-
-    1. 이름 그대로. 표기가 어긋나면 `name_canon.json`이 맞춘다(ADR-0007).
-    2. 개편 후 새 이름이면 명칭 변경 CSV가 적어 둔 **ID**의 줄. 이름으로 되돌리지 않는 까닭은
-       옛 이름 하나가 새 이름 둘로 갈릴 때 어느 줄이 어느 쪽인지 이름으로는 못 가리기 때문이다.
-    """
-    fixed = canon.get(name, name)
-    if fixed and fixed in rows_by_name:
-        return rows_by_name[fixed]
-    return [
-        row
-        for ars in sorted(renames.new_to_ars.get(fixed or name, ()))
-        for row in rows_by_ars.get(ars, ())
-    ]
-
-
 def _link(
-    plans: dict[str, dict[str, tuple[str, ...]]],
+    plans: Plans,
     routes: dict[str, dict],
-    rows_by_name: dict[str, list[Stop]],
-    rows_by_ars: dict[str, list[Stop]],
-    canon: dict[str, str | None],
-    renames: RenameDict,
+    index: StopIndex,
     additions: set[str],
     order: dict[str, int],
 ) -> tuple[dict[str, tuple[str, ...]], dict[str, str]]:
@@ -190,15 +210,14 @@ def _link(
             for name in names:
                 if name in linked or name in unlinked:
                     continue
-                hit = _resolve(name, rows_by_name, rows_by_ars, canon, renames)
+                hit = index.resolve(name)
                 if hit:
                     # `stops.csv`의 줄 차례로 둔다 — 이름으로 이었든 ID로 이었든 같은 순서가 나온다
                     linked[name] = tuple(
                         sorted((s.station_num for s in hit), key=order.__getitem__)
                     )
-                elif name in additions or canon.get(name, name) is None:
-                    # 좌표가 없는 것이 확인된 이름 — 신설 정류소이거나 `name_canon.json`이 `null`로
-                    # 적어 둔 것이다. 여기서만 비워 두고 `_estimate`가 중점을 채운다
+                elif index.coordinateless(name, additions):
+                    # 여기서만 비워 두고 `_estimate`가 앞뒤 중점을 채운다
                     linked[name] = ()
                 else:
                     unlinked[name] = routes[rid]["name"]
@@ -212,7 +231,7 @@ def _centre(ids: tuple[str, ...], by_num: dict[str, Stop]) -> tuple[float, float
 
 
 def _estimate(
-    plans: dict[str, dict[str, tuple[str, ...]]],
+    plans: Plans,
     linked: dict[str, tuple[str, ...]],
     by_num: dict[str, Stop],
 ) -> dict[str, tuple[float, float]]:

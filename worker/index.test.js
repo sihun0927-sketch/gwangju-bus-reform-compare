@@ -49,8 +49,9 @@ test("화면 문구에 옛 용어가 없다", async () => {
 
 test("번들이 Worker에 실려 있다", async () => {
   // 뼈대 단계에서 번들을 아무 데도 안 쓰면 번들러가 지운다. 배포 크기를 재기 전에 여기서 잡는다
+  // 줄 수 자체는 번들 검사(pytest)가 본다. 여기서는 번들이 살아 있다는 것만 본다
   const 표식 = (await 부른다("/compare")).headers.get("x-bundle");
-  assert.match(표식, /^stops=4803 routes=230$/);
+  assert.match(표식, /^stops=[1-9]\d{3,} routes=[1-9]\d{2,}$/);
 });
 
 test("규칙 상수는 rules 한 곳에 있다", () => {

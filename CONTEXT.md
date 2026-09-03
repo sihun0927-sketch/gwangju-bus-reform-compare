@@ -255,7 +255,8 @@ REST 키는 장소 검색용, Worker 환경 변수에만. JS 키는 지도용, �
 알 수 있도록 적는다. 장소 탭 설계(2026-09-03 그릴링)로 미확정 표시는 모두 걷혔다.
 
 **① 빌드 스크립트 (build script)** — `tools/build`. 배포 전에 한 번 돈다. 입력은 `data/source/*.csv` 6개와
-`data/source/stops.csv`, 출력은 `out/`(정적 파일)와 `worker/data.json`(번들 JSON). 노선번호 탭은 이것만으로 완성된다(ADR-0002).
+`data/source/stops.csv`, 그리고 이름 잇기 표 `data/name_canon.json`·기·종점 정렬표 `data/기종점정렬표.csv`.
+출력은 `out/`(정적 파일)와 `worker/data.json`(번들 JSON). 노선번호 탭은 이것만으로 완성된다(ADR-0002).
 
 | 코드 이름 | 한글 용어 | 하는 일 |
 |---|---|---|
@@ -275,7 +276,8 @@ REST 키는 장소 검색용, Worker 환경 변수에만. JS 키는 지도용, �
 **② Worker** — `worker/`. 요청마다 실행되는 JavaScript 서버 코드. 장소 탭만 쓴다(ADR-0001). 세 진입점과
 브라우저 스크립트 하나. 데이터는 번들 JSON뿐이고 D1은 없다(ADR-0008). 경로 계산 규칙은 장소 탭 절의 용어
 (도보권·환승 도보·추정 소요 시간)에 있고, 상수는 `worker/rules.js` 한 곳. 정적 자산과 같은 Worker이며
-`run_worker_first`로 세 경로만 코드가 받는다.
+`run_worker_first`로 세 경로만 코드가 받는다. `worker/index.js`가 그 `fetch(request, env)` 진입점 하나로,
+세 경로를 아래 표로 나누고 나머지는 `env.ASSETS`로 넘긴다.
 
 | 코드 이름 | 한글 용어 | 하는 일 |
 |---|---|---|
