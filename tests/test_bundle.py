@@ -83,9 +83,20 @@ def test_routes가_111더하기_119이고_노선망_표시가_있다(bundle: dic
     assert 노선["after:간선18"]["name"] == "간선18"
 
 
-def test_배차는_아직_비어_있다(bundle: dict) -> None:
-    """개편 전 배차 자료가 없어 자리만 둔다(스펙 Out of Scope). 빈칸을 화면이 「정보 없음」으로 읽는다."""
-    assert all(v["headway"] is None for v in bundle["routes"].values())
+def test_배차간격은_개편_전에만_붙는다(bundle: dict) -> None:
+    """시가 공표한 값이 개편 전에만 있다. 빈칸을 화면이 「정보 없음」으로 읽는다(CONTEXT 「경로 줄」)."""
+    노선 = bundle["routes"]
+    붙은_것 = {k: v["headway"] for k, v in 노선.items() if v["headway"] is not None}
+    assert len(붙은_것) == 110, "배차 CSV 110행"
+    assert all(k.startswith("before:") for k in 붙은_것), "개편 후에는 붙지 않는다"
+    assert all(isinstance(v, int) and v > 0 for v in 붙은_것.values()), "분 단위 숫자다"
+
+    # 이름이 두 노선망에 다 있는 노선. 노선망을 안 가리고 이름으로 찾으면 개편 후가 개편 전 값을 문다
+    assert 노선["before:228(구151.화순사평)"]["headway"] is not None
+    assert 노선["after:228"]["headway"] is None
+    # 개편 전 111행 중 순환01 한 행만 배차 CSV에 없다
+    assert 노선["before:순환01"]["headway"] is None
+    assert 노선["before:좌석02"]["headway"] == 7
 
 
 def test_문흥18의_같은_이름이_STATION_NUM_둘로_붙는다(bundle: dict) -> None:
