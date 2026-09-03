@@ -19,9 +19,9 @@ export function compare(params) {
   if (!from || !to) return render.pickPoints();
 
   const 사이 = metresBetween(from, to);
-  if (사이 <= WALK_RADIUS_M) return render.walkable(사이);
+  if (사이 <= WALK_RADIUS_M) return render.walkable();
 
-  return render.fragment(NETWORKS.map((network) => 카드(network, from, to)));
+  return render.cardPair(NETWORKS.map((network) => 카드(network, from, to)));
 }
 
 /** 노선망 하나의 카드. 도착 지점에 정류장이 없으면 카드 대신 안내 한 줄이다. */

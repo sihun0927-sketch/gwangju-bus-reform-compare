@@ -22,7 +22,8 @@ const BUNDLE_HEALTH =
   `stops=${Object.keys(bundle.stops).length}` +
   ` routes=${Object.keys(bundle.routes).length}`;
 
-function fragment(html, status = 200) {
+/** 조각 하나를 응답으로 감싼다. 조각(HTML 토막) 자체를 만드는 것은 `render`다(CONTEXT 「조각」). */
+function htmlResponse(html, status = 200) {
   return new Response(html, {
     status,
     headers: {
@@ -35,9 +36,9 @@ function fragment(html, status = 200) {
 export default {
   async fetch(request, env) {
     const { pathname, searchParams } = new URL(request.url);
-    if (pathname === "/compare") return fragment(compare(searchParams));
+    if (pathname === "/compare") return htmlResponse(compare(searchParams));
     if (pathname === "/places" || pathname.startsWith("/journey/")) {
-      return fragment(NOT_READY);
+      return htmlResponse(NOT_READY);
     }
     return env.ASSETS.fetch(request);
   },

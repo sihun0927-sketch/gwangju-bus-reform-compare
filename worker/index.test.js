@@ -7,7 +7,10 @@
  *     node --test "worker/*.test.js"
  */
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import worker from "./index.js";
 import * as rules from "./rules.js";
@@ -64,4 +67,35 @@ test("규칙 상수는 rules 한 곳에 있다", () => {
   assert.equal(rules.WALK_SPEED_KMH, 4);
   assert.equal(rules.PLACE_QUERY_MIN_LENGTH, 2);
   assert.equal(rules.PLACE_CACHE_SECONDS, 86400);
+});
+
+test("규칙 값이 rules 밖에 박혀 있지 않다", () => {
+  // 값이 같기만 하면 앞 검사는 통과하므로, 「rules에서 **읽는지**」는 소스를 훑어야 알 수 있다.
+  // 화면 문구("도보권 500m 안에")까지 포함해서다 — 규칙을 고칠 때 문구가 따로 낡는 것이 이 검사가 막는 것
+  const 자리 = dirname(fileURLToPath(import.meta.url));
+  // 한 자리 수(2·4·5·8)와 1000은 뺐다 — 셈이나 문자열("utf-8", 1km=1000m)에 흔히 나와
+  // 규칙 값과 구별할 수 없다. 나머지 여섯은 이 검사가 잡는다
+  const 규칙_값 = [
+    rules.WALK_RADIUS_M,
+    rules.WALK_RADIUS_STEP_M,
+    rules.TRANSFER_WALK_M,
+    rules.SECONDS_PER_STOP,
+    rules.PLACE_CACHE_SECONDS,
+    rules.PLACE_SEARCH_MARGIN_M,
+  ];
+  const 모듈 = readdirSync(자리).filter(
+    (이름) => 이름.endsWith(".js") && 이름 !== "rules.js" && !이름.endsWith(".test.js"),
+  );
+  assert.ok(모듈.length > 1, 모듈);
+  for (const 이름 of 모듈) {
+    // 주석은 뺀다 — 규칙을 말로 설명한 곳(「출발지는 500m 안에」)은 박아 넣은 값이 아니다.
+    // 이 파일들에는 `//`가 든 문자열이 없어 이만큼으로 충분하다
+    const 글 = readFileSync(join(자리, 이름), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/.*$/gm, " ");
+    for (const 값 of 규칙_값) {
+      const 박힌_숫자 = new RegExp(`(^|[^0-9.])${값}([^0-9.]|$)`);
+      assert.ok(!박힌_숫자.test(글), `${이름}에 규칙 값 ${값}이 그대로 적혀 있다`);
+    }
+  }
 });

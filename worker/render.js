@@ -32,9 +32,11 @@ const 안내 = (글, 노선망) =>
 /** 출발·도착 중 하나라도 아직 안 골랐거나 좌표가 깨졌을 때. */
 export const pickPoints = () => 안내("출발 지점과 도착 지점을 모두 골라 주세요.");
 
-/** 두 지점이 도보권 안이라 버스를 탈 일이 없을 때 (CONTEXT 「도보권」). */
-export const walkable = (metres) =>
-  안내(`두 지점이 ${미터(metres)}쯤 떨어져 있어 걸어갈 수 있는 거리입니다.`);
+/**
+ * 두 지점이 도보권 안이라 버스를 탈 일이 없을 때 (CONTEXT 「도보권」).
+ * 잰 거리는 적지 않는다 — 용어집이 「걸어갈 수 있는 거리」라고만 알린다고 적었다.
+ */
+export const walkable = () => 안내("걸어갈 수 있는 거리입니다.");
 
 /** 도착 지점 도보권에 이 노선망의 정류장이 하나도 없을 때 — 카드 대신 한 줄이다. */
 export const outOfReach = (network) =>
@@ -43,8 +45,15 @@ export const outOfReach = (network) =>
     network,
   );
 
-/** 카드 한 쌍(또는 그 자리를 대신한 안내)을 한 조각으로 묶는다. */
-export const fragment = (조각들) => `<div class="compare">${조각들.join("")}</div>`;
+/** 카드 한 쌍(또는 그 자리를 대신한 안내)을 조각 하나로 묶는다. */
+export const cardPair = (조각들) => `<div class="compare">${조각들.join("")}</div>`;
+
+/** 줄 목록을 `<ul>`이나 `<ol>` 하나로. 경로 줄과 지표 줄이 같은 모양이라 한 곳에 둔다. */
+const 목록 = (태그, 갈래, 줄들) =>
+  `<${태그} class="${갈래}">${줄들.map((줄) => `<li>${줄}</li>`).join("")}</${태그}>`;
+
+/** 화면에 적는 노선 이름. */
+const 노선_이름 = (network, journey) => 벗김(network.routeName(journey.route));
 
 /** 추정 좌표를 쓴 정류장이면 이름 옆에 표시를 붙인다 (CONTEXT 「추정 좌표」). */
 function 정류장(stop) {
@@ -73,11 +82,11 @@ function 경로(network, journey) {
   const 줄 = [
     `출발 지점에서 ${미터(journey.board.walk)} 걷기`,
     `승차 ${정류장(journey.board)}`,
-    `${벗김(network.routeName(journey.route))} 타고 ${journey.stopsPassed}개 정류장`,
+    `${노선_이름(network, journey)} 타고 ${journey.stopsPassed}개 정류장`,
     `하차 ${정류장(journey.alight)}`,
     `${미터(journey.alight.walk)} 걸어 도착 지점`,
   ];
-  return `<ol class="legs">${줄.map((x) => `<li>${x}</li>`).join("")}</ol>`;
+  return 목록("ol", "legs", 줄);
 }
 
 /** 카드 아래 수치 줄 (CONTEXT 「지표」). 배차간격은 값이 없으면 「정보 없음」이다. */
@@ -86,12 +95,12 @@ function 지표(network, journey) {
   const 줄 = [
     `예상 시간 ${분(journey.seconds)}`,
     `환승 ${journey.transfers ? `${journey.transfers}회` : "없음"}`,
-    `노선 ${벗김(network.routeName(journey.route))}`,
+    `노선 ${노선_이름(network, journey)}`,
     `정류장 ${journey.stopsPassed}곳`,
     `도보 합계 ${도보_합계(journey)}`,
     `배차간격 ${배차 === null || 배차 === undefined ? "정보 없음" : 벗김(배차)}`,
   ];
-  return `<ul class="metrics">${줄.map((x) => `<li>${x}</li>`).join("")}</ul>`;
+  return 목록("ul", "metrics", 줄);
 }
 
 const 추정치 =

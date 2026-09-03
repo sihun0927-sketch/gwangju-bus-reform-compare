@@ -17,11 +17,6 @@ export function walkSeconds(metres) {
   return (metres / (WALK_SPEED_KMH * METRES_PER_KM)) * SECONDS_PER_HOUR;
 }
 
-/** 경로가 쓰는 노선의 차례. 이것이 같으면 같은 경로로 본다. 직행은 노선 하나다. */
-export function routeCombination(journey) {
-  return journey.route;
-}
-
 /** 경로 목록에 `walk`(도보 합계 m)와 `seconds`(추정 소요 시간)를 붙여 좋은 순으로 돌려준다. */
 export function rank(journeys) {
   const 잰 = journeys.map((journey) => {
@@ -39,7 +34,8 @@ export function rank(journeys) {
   const 남길 = [];
   const 본_조합 = new Set();
   for (const journey of 잰) {
-    const 조합 = routeCombination(journey);
+    // 노선 조합이 같으면 같은 경로로 본다. 직행은 노선 하나이므로 조합이 곧 노선이다
+    const 조합 = journey.route;
     if (본_조합.has(조합)) continue;
     본_조합.add(조합);
     남길.push(journey);
