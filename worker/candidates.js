@@ -1,0 +1,50 @@
+/**
+ * 도보권 후보 — 지점 하나에서 걸어가 탈 수 있는 정류장 (CONTEXT 「도보권」).
+ *
+ * 출발지는 500m 안에 하나도 없으면 100m씩 1,000m까지 넓히고, 도착지는 500m로 고정한다.
+ * 넓히기가 출발지에만 있는 까닭은, 도착지를 넓히면 「내려서 한참 걷는 길」이 답으로 나오는데
+ * 그것은 시민이 물어본 것이 아니기 때문이다.
+ */
+import {
+  STOP_CANDIDATES,
+  WALK_RADIUS_M,
+  WALK_RADIUS_MAX_M,
+  WALK_RADIUS_STEP_M,
+} from "./rules.js";
+
+// 지구 반지름(m). 고르는 값이 아니라 물리 상수라 `rules`에 두지 않는다
+const EARTH_RADIUS_M = 6371000;
+
+const 라디안 = (도) => (도 * Math.PI) / 180;
+
+/** 두 지점 사이 직선 거리(m). 도로를 따르지 않는다 — 도보 거리는 모두 이 값이다. */
+export function metresBetween(a, b) {
+  const φ1 = 라디안(a.lat);
+  const φ2 = 라디안(b.lat);
+  const Δφ = 라디안(b.lat - a.lat);
+  const Δλ = 라디안(b.lng - a.lng);
+  const h = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * 지점 하나의 도보권 후보를 가까운 순으로. 없으면 빈 목록.
+ *
+ * `expand`가 참이면 출발지 규칙(100m씩 1,000m까지)을, 거짓이면 도착지 규칙(500m 고정)을 쓴다.
+ * 거리는 후보마다 `walk`(m)로 실려 나간다 — 순위와 카드가 그 값을 다시 재지 않는다.
+ */
+export function walkableStops(network, point, { expand = false } = {}) {
+  // 거리는 한 번만 잰다. 반경을 넓히는 것은 이미 잰 값을 다시 거르는 일이다
+  const 가까운 = [];
+  for (const stop of network.served) {
+    const walk = metresBetween(point, stop);
+    if (walk <= WALK_RADIUS_MAX_M) 가까운.push({ ...stop, walk });
+  }
+  가까운.sort((a, b) => a.walk - b.walk);
+
+  const 끝 = expand ? WALK_RADIUS_MAX_M : WALK_RADIUS_M;
+  for (let 반경 = WALK_RADIUS_M; ; 반경 += WALK_RADIUS_STEP_M) {
+    const 안에 = 가까운.filter((s) => s.walk <= 반경).slice(0, STOP_CANDIDATES);
+    if (안에.length || 반경 >= 끝) return 안에;
+  }
+}

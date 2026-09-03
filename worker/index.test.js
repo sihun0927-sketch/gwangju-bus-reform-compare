@@ -21,14 +21,15 @@ const env = {
 
 const 부른다 = (url) => worker.fetch(new Request(`https://example.com${url}`), env);
 
-test("/compare는 준비 중 조각을 돌려준다", async () => {
-  const 응답 = await 부른다("/compare?from=35.17,126.90&to=35.13,126.79");
+test("/compare는 HTML 조각을 돌려준다", async () => {
+  // 안에 무엇이 실리는지는 `compare.test.js`가 본다. 여기서는 주소가 코드로 온다는 것만
+  const 응답 = await 부른다("/compare?from=35.1702,126.9040&to=35.1381,126.7918");
   assert.equal(응답.status, 200);
   assert.match(응답.headers.get("content-type"), /text\/html/);
-  assert.match(await 응답.text(), /준비 중/);
+  assert.match(await 응답.text(), /개편 전[\s\S]*개편 후/);
 });
 
-test("/places와 /journey도 준비 중 조각을 돌려준다", async () => {
+test("/places와 /journey는 아직 준비 중 조각을 돌려준다", async () => {
   for (const url of ["/places?q=전남대", "/journey/abc"]) {
     assert.match(await (await 부른다(url)).text(), /준비 중/, url);
   }
