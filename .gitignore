@@ -12,3 +12,7 @@ __pycache__/
 # 빌드 산출물
 out/
 d1/seed.sql
+
+# wrangler
+.wrangler/
+node_modules/

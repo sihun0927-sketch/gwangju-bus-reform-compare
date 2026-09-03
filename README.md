@@ -48,6 +48,15 @@
 
 ![조각 출처 a vs b](docs/images/mock-4-fragment-source.png)
 
+## 배포 (Cloudflare Workers)
+
+Worker 이름 `gwangju-bus-reform-compare`. Workers Builds가 `main`에 push될 때마다 리포를 받아
+`python -m tools.build`로 `out/`을 만들고, `wrangler.jsonc`대로 `out/`을 정적 자산으로 올린다.
+Worker 코드는 아직 없다(노선번호 탭은 정적 파일만으로 돈다, ADR-0002).
+
+대시보드 빌드 설정(리포 밖, 한 번만): 빌드 명령 `python -m tools.build` · 배포 명령 `npx wrangler deploy` · 루트 `/`.
+로컬 확인: `python -m tools.build && npx wrangler deploy --dry-run`.
+
 ## 상태 (2026-09-03)
 
 **노선번호 탭이 정적 파일로 돈다.** `python -m tools.build`가 `out/`에 껍데기 `index.html` 한 장(노선 개편 목록 표 103줄)과
