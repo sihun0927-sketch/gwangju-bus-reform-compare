@@ -1,7 +1,8 @@
 # 구조 (2026-09-02 설계 확정본)
 
 이 문서는 세션 맥락 없이 읽혀야 한다. 용어는 `CONTEXT.md`, 결정의 근거는 `docs/adr/`.
-설계 캔버스: https://claude.ai/code/artifact/fbf89d71-17a6-4f49-b963-aa3eb506b539
+모듈 지도: https://claude.ai/code/artifact/6977a9d4-929e-40d8-a252-9620cb46f86b (구현 때 보는 것)
+화면 목업: https://claude.ai/code/artifact/fbf89d71-17a6-4f49-b963-aa3eb506b539 (용어는 2026-09-02 것)
 
 ## 1. 한 문장
 
