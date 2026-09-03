@@ -7,10 +7,12 @@
  *
  * 데이터는 빌드가 만든 번들 JSON 하나뿐이다 — D1은 없다. 요청 때 하는 일은 조회·순위·렌더뿐이다.
  *
- * `/compare`는 `compare` 모듈이 채웠다. `/places`와 `/journey`는 아직 「준비 중」 조각이다.
+ * `/compare`는 `compare` 모듈이 채웠고, `/places`는 Kakao 자동완성 조각을 돌려준다.
+ * `/journey`는 아직 「준비 중」 조각이다.
  * 번들을 여기서도 import해 두는 까닭은, 배포에 실린 번들의 크기를 응답 머리로 보이기 위해서다.
  */
 import bundle from "./data.json" with { type: "json" };
+import { places } from "./places.js";
 
 import { compare } from "./compare.js";
 
@@ -36,8 +38,9 @@ function htmlResponse(html, status = 200) {
 export default {
   async fetch(request, env) {
     const { pathname, searchParams } = new URL(request.url);
+    if (pathname === "/places") return htmlResponse(await places(request, env, bundle));
     if (pathname === "/compare") return htmlResponse(compare(searchParams));
-    if (pathname === "/places" || pathname.startsWith("/journey/")) {
+    if (pathname.startsWith("/journey/")) {
       return htmlResponse(NOT_READY);
     }
     return env.ASSETS.fetch(request);

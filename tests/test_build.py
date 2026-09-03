@@ -490,14 +490,15 @@ def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조�
     assert [값 for 값, _ in 후보] == 번호
 
 
-def test_껍데기의_스크립트는_htmx와_path_params_확장_둘뿐이다(site: Path) -> None:
-    """확장은 htmx 뒤에 와야 켜진다. 우리가 쓴 스크립트는 없다(§7-3 Q1)."""
+def test_껍데기의_스크립트는_htmx와_path_params_확장과_place_js_셋뿐이다(site: Path) -> None:
+    """확장은 htmx 뒤에 와야 켜진다. 우리가 쓴 스크립트는 장소 탭의 place.js 하나뿐이다(§7-3 Q1)."""
     태그 = re.findall(r"<script\b[^>]*>", index(site))
-    assert len(태그) == 2
-    htmx태그, 확장태그 = 태그
+    assert len(태그) == 3
+    htmx태그, 확장태그, 우리태그 = 태그
     assert "htmx.org" in htmx태그
     assert "htmx-ext-path-params" in 확장태그
     assert 'integrity="sha384-' in 확장태그   # CDN이 다른 파일을 내주면 아예 싣지 않는다
+    assert 'src="place.js"' in 우리태그
 
 
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
@@ -511,7 +512,7 @@ def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
 
 def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
     # 입력칸의 `route/{number}.html`은 틀이라 뺀다 — 값이 들어가야 주소가 된다
-    주소 = [u for u in re.findall(r'hx-get="([^"]+)"', index(site)) if "{" not in u]
+    주소 = [u for u in re.findall(r'hx-get="(route/[^"]+)"', index(site)) if "{" not in u]
     assert len(주소) == 103
     for url in 주소:
         assert (site / url).exists(), url
@@ -532,3 +533,18 @@ def test_두_탭의_입력칸이_자리를_잡고_결과_영역은_비어_있다
     assert html.count("장소나 주소 입력 (예: 전남대)") == 2   # 출발·도착
     assert 'id="result"' in html
     assert "route-change" not in html   # 카드는 아직 안 끼워져 있다
+
+
+def test_장소_입력칸_둘은_자동완성을_부르고_후보를_고르면_비교를_요청한다(site: Path) -> None:
+    html = index(site)
+    assert html.count('hx-get="/places"') == 2
+    assert html.count('hx-trigger="keyup changed delay:250ms"') == 2
+    장소칸 = [줄 for 줄 in html.splitlines() if "장소나 주소 입력 (예: 전남대)" in 줄]
+    assert all("disabled" not in 줄 for 줄 in 장소칸)
+    assert "장소로 찾기는 아직 준비 중입니다" not in html
+    assert 'id="from-candidates"' in html
+    assert 'id="to-candidates"' in html
+    assert 'id="place-result"' in html
+    assert (site / "place.js").exists()
+    script = (site / "place.js").read_text(encoding="utf-8")
+    assert "/compare?from=" in script
