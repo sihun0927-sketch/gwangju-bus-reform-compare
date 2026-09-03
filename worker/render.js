@@ -4,10 +4,10 @@
  * 화면에 나가는 말은 CONTEXT 「장소로 찾기」 절을 따른다. 카드 머리에 상태만 적고, 두 카드를
  * 합쳐 말하는 **판정 문장은 두지 않는다** — 견주는 일은 시민이 카드 둘을 보고 한다.
  *
- * 카드 안은 둘로 나뉜다(CONTEXT 「경로 줄」·「지표」). **노선마다 달라지는 값**(노선 이름 ·
- * 배차간격 · 지나는 정류장 수)은 경로 줄의 그 노선 자리에 있고, **경로 전체에 하나씩인 값**
- * (예상 시간 · 환승 · 도보 합계)만 아래 지표 표에 있다. 나누지 않으면 환승 2회 경로에서 같은
- * 값이 네 번까지 겹친다.
+ * 카드 안은 둘로 나뉜다(CONTEXT 「경로 줄」·「지표」). 경로 줄은 **구간 차례**를 보이고, 지표 표는
+ * 그 경로를 **한 눈에 견주는 다섯 줄**을 보인다 — 예상 시간 · 환승 · 노선번호 · 배차간격 · 도보 합계.
+ * 노선번호와 배차간격은 구간마다 달라지므로 지표 표에서는 경로가 쓰는 값을 차례대로 「·」로 잇는다.
+ * 겹쳐 적는 까닭은 두 카드를 나란히 놓고 같은 높이의 같은 줄끼리 견주기 위해서다(2026-09-04).
  *
  * 숫자를 문장에 적을 때도 상수는 `rules`에서 읽는다. 안내문에 500이라 적어 두면 도보권을 고칠 때
  * 규칙과 문구가 따로 낡는다.
@@ -121,7 +121,7 @@ const 배차_값 = (v) => (typeof v === "number" ? `${v}분` : 배차_없음);
  */
 export function card(network, journey, { key, geometry, alternatives = [], places = {} } = {}) {
   const 안쪽 = journey
-    ? 경로(network, journey, places) + 지표(journey) + 지도_버튼(network) + 좌표(geometry)
+    ? 경로(network, journey, places) + 지표(network, journey) + 지도_버튼(network) + 좌표(geometry)
     : `<p class="notice">이 노선망에서는 환승 ${MAX_TRANSFERS}회 안에 가는 길을 찾지 못했습니다.</p>`;
   return 카드("journey-card", network, journey, key, 안쪽)
     + (journey ? 다른_경로(network, alternatives, places) : "");
@@ -136,7 +136,7 @@ export function card(network, journey, { key, geometry, alternatives = [], place
 export const alternative = (network, journey, { key, geometry, places = {} } = {}) =>
   카드(
     "journey-card alternative", network, journey, key,
-    경로(network, journey, places) + 지표(journey)
+    경로(network, journey, places) + 지표(network, journey)
       + 지도_버튼(network) + 좌표(geometry),
   );
 
@@ -277,15 +277,27 @@ const 경로 = (network, journey, places) =>
   + "</ol>";
 
 /**
- * 카드 아래 지표 표 (CONTEXT 「지표」) — 경로 전체에 하나씩인 값 셋뿐이다.
+ * 카드 아래 지표 표 (CONTEXT 「지표」) — 다섯 줄이 늘 같은 차례로 선다.
  *
  * 레이블을 왼쪽, 값을 오른쪽에 두는 정의 목록이라 개편 전·후 두 카드의 행이 늘 맞는다. 알약을
  * 줄바꿈으로 흘리면 항목 글자 길이에 따라 카드마다 접히는 자리가 갈려 나란히 놓아도 견줄 수 없다.
+ *
+ * 노선번호와 배차간격은 구간마다 달라진다. 지표 표에는 **경로가 쓰는 값을 차례대로** 「·」로 이어
+ * 한 줄에 적는다 — 환승 2회면 노선 셋이 한 칸에 선다. 구간이 어디서 갈리는지는 경로 줄이 보인다.
+ *
+ * 구간 값이 **모두 같으면 한 번만** 적는다. 개편 후는 배차 공표값이 하나도 없어, 그러지 않으면
+ * 환승 2회 카드에 「정보 없음 · 정보 없음 · 정보 없음」이 서서 견줄 것이 없는 자리가 제일 길어진다.
  */
-function 지표(journey) {
+function 지표(network, journey) {
+  const 구간별 = (값) => {
+    const 값들 = journey.legs.map(값);
+    return new Set(값들).size === 1 ? 값들[0] : 값들.join(" · ");
+  };
   const 줄 = [
     ["예상 시간", 분(journey.seconds)],
     ["환승", journey.transfers ? `${journey.transfers}회` : "없음"],
+    ["노선번호", 구간별((leg) => 노선_이름(network, leg.route))],
+    ["배차간격", 구간별((leg) => 배차_값(network.headway(leg.route)))],
     ["도보 합계", 도보_합계(journey)],
   ];
   return '<dl class="metrics">'
