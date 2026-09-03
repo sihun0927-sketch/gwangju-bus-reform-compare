@@ -31,6 +31,15 @@ BEFORE_CSV = "광주권역 개편전 노선안.csv"
 AFTER_CSV = "광주권역 개편후 노선안.csv"
 TABLE_CSV = "노선개편 전후 비교표.csv"
 
+# 비고와 명칭 사전이 읽는 CSV 셋. 정류장은 이름으로만 견준다 — 노선안 CSV에 ID가 없다
+RENAME_COLUMNS = ("현 정류소", "변경정류소")
+REMOVAL_COLUMNS = ("구분", "정류소명", "통폐합사유")
+ADDITION_COLUMNS = ("정류소",)
+
+RENAME_CSV = "명칭 변경 정류소.csv"
+REMOVAL_CSV = "통폐합이전정류소.csv"
+ADDITION_CSV = "신설 정류소.csv"
+
 # 「지선 97(빛그린산단출근)」 → 종류 지선 · 번호 97 · 방면 빛그린산단출근. 「228」은 종류 없음
 ROUTE_RE = re.compile(r"^(?P<kind>[^\d\s(]+)?\s*(?P<num>\d+(?:-\d+)?)\s*(?:\((?P<branch>[^)]*)\))?$")
 BRANCH_RE = re.compile(r"^(?P<number>.*?)\((?P<branch>[^)]*)\)$")
@@ -49,6 +58,23 @@ class Route:
     terminus: str      # 종점
     up: tuple[str, ...]    # 상행 정류장(순서대로)
     down: tuple[str, ...]  # 하행 정류장(순서대로). 순환·편도는 비어 있다
+
+
+@dataclass(frozen=True)
+class Rename:
+    """명칭 변경 CSV 한 행 — 정류장 ID 하나가 행 하나다. 같은 옛 이름이 여러 행에 나온다."""
+
+    old: str   # 현 정류소 — 개편 전 노선안이 쓰는 이름
+    new: str   # 변경정류소 — 개편 후 노선안이 쓰는 이름
+
+
+@dataclass(frozen=True)
+class Removal:
+    """통폐합·이전·폐지 CSV 한 행. 비고에는 구분만 적고 사유는 마우스를 올렸을 때 보인다."""
+
+    kind: str    # 구분 — 통폐합 / 폐지 / 이전
+    stop: str    # 정류소명. 「A(B)」는 B를 A로 흡수했다는 뜻이라 노선안의 이름과 안 맞는다
+    reason: str  # 통폐합사유 — 화면에는 `title`로만 나온다
 
 
 @dataclass(frozen=True)
@@ -133,6 +159,27 @@ def read_replacements(source: Path) -> list[Replacement]:
         )
         for r in rows
     ]
+
+
+def read_renames(source: Path) -> list[Rename]:
+    """명칭 변경 정류소 102행. 사전으로 만드는 것은 `rename_dict`가 한다."""
+    rows = read_csv(source / RENAME_CSV, RENAME_COLUMNS)
+    return [Rename(old=r["현 정류소"].strip(), new=r["변경정류소"].strip()) for r in rows]
+
+
+def read_removals(source: Path) -> list[Removal]:
+    """통폐합이전정류소 16행. 폐지도 이 파일에 있다."""
+    rows = read_csv(source / REMOVAL_CSV, REMOVAL_COLUMNS)
+    return [
+        Removal(kind=r["구분"].strip(), stop=r["정류소명"].strip(), reason=r["통폐합사유"].strip())
+        for r in rows
+    ]
+
+
+def read_additions(source: Path) -> list[str]:
+    """신설 정류소 68행 — 이름만 쓴다."""
+    rows = read_csv(source / ADDITION_CSV, ADDITION_COLUMNS)
+    return [r["정류소"].strip() for r in rows]
 
 
 def find_after(routes: list[Route], spelled: str) -> list[Route]:
