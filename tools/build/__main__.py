@@ -25,7 +25,8 @@ def main(argv: list[str]) -> int:
         return 1
     manual = sum(result.stages.get(s, 0) for s in MANUAL_STAGES)
     print(
-        f"노선 변화 표 {result.tables}개와 노선 변화 카드 {result.cards}개를"
+        f"껍데기 index.html(노선 개편 목록 표 {result.cards}줄)과"
+        f" 노선 변화 표 {result.tables}개, 노선 변화 카드 {result.cards}개를"
         f" {result.out}에 썼습니다."
     )
     print(

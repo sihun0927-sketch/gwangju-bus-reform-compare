@@ -67,10 +67,11 @@ def run_cli(data: Path, out: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_명령_하나로_노선_변화_표_205개와_카드_103개가_생긴다(site: Path) -> None:
+def test_명령_하나로_껍데기와_노선_변화_표_205개와_카드_103개가_생긴다(site: Path) -> None:
+    assert (site / "index.html").exists()
     assert len(list(site.glob("route/*/*/*/*.html"))) == 205
     assert len(list(site.glob("route/*.html"))) == 103
-    assert len(list(site.rglob("*.html"))) == 308
+    assert len(list(site.rglob("*.html"))) == 309
 
 
 def test_out을_비우고_다시_쓴다(tmp_path: Path) -> None:
@@ -332,3 +333,77 @@ def test_화면_문구에_옛_용어가_없다(site: Path) -> None:
         글 = path.read_text(encoding="utf-8")
         for 옛말 in ("기존", "신규", "현행"):
             assert 옛말 not in 글, f"{path.name}에 「{옛말}」"
+
+
+def index(site: Path) -> str:
+    return (site / "index.html").read_text(encoding="utf-8")
+
+
+def list_rows(html: str) -> list[str]:
+    본문 = re.search(r'<tbody class="reform">(.*?)</tbody>', html, re.S)
+    assert 본문, "목록 표의 본문을 못 찾았습니다"
+    return re.findall(r"<tr\b.*?</tr>", 본문.group(1), re.S)
+
+
+def list_row(html: str, number: str) -> str:
+    for 줄 in list_rows(html):
+        if f'hx-get="route/{number}.html"' in 줄:
+            return 줄
+    raise AssertionError(f"목록에 {number} 줄이 없습니다")
+
+
+def test_껍데기에_제목과_탭_둘과_목록_제목이_있다(site: Path) -> None:
+    html = index(site)
+    for 문구 in ("버스개편 비교", "장소로 찾기", "노선번호로 찾기", "노선번호 개편안"):
+        assert 문구 in html
+
+
+def test_목록은_103줄이고_줄마다_카드를_겨눈다(site: Path) -> None:
+    html = index(site)
+    줄 = list_rows(html)
+    assert len(줄) == 103
+    assert 'hx-get="route/문흥18.html"' in html
+    assert all('hx-target="#result"' in r for r in 줄)
+
+
+def test_목록_줄은_눌리는_것으로_읽히고_끼운_자리를_보여_준다(site: Path) -> None:
+    """마우스가 없는 사람도 줄을 누를 수 있어야 하고, 카드가 화면 밖에서 바뀌면 안 된다."""
+    줄 = list_row(index(site), "문흥18")
+    assert 'role="button"' in 줄 and 'tabindex="0"' in 줄
+    assert "keyup[key=='Enter']" in 줄 and "keyup[key==' ']" in 줄
+    assert 'hx-swap="innerHTML show:top"' in 줄
+    assert 'aria-label="문흥18 — 간선18, 지선10"' in 줄
+    assert 'aria-label="두암181 — 대체 노선 없음"' in list_row(index(site), "두암181")
+
+
+def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
+    html = index(site)
+    문흥18줄 = list_row(html, "문흥18")
+    assert "간선18" in 문흥18줄 and "지선10" in 문흥18줄
+    순환01줄 = list_row(html, "순환01")
+    assert "간선01" in 순환01줄 and "간선11" in 순환01줄
+    assert "대체 노선 없음" in list_row(html, "두암181")
+
+
+def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
+    주소 = re.findall(r'hx-get="([^"]+)"', index(site))
+    assert len(주소) == 103
+    for url in 주소:
+        assert (site / url).exists(), url
+
+
+def test_껍데기는_htmx와_CSS_한_장을_부른다(site: Path) -> None:
+    html = index(site)
+    assert 'href="site.css"' in html
+    assert html.count('<link rel="stylesheet"') == 1
+    assert "htmx.org" in html
+    assert 'integrity="sha384-' in html   # CDN이 다른 파일을 내주면 아예 싣지 않는다
+    assert (site / "site.css").exists()
+
+
+def test_두_탭의_입력칸이_자리를_잡고_결과_영역은_비어_있다(site: Path) -> None:
+    html = index(site)
+    assert "노선번호 입력 (예: 지원152)" in html
+    assert html.count("장소나 주소 입력 (예: 전남대)") == 2   # 출발·도착
+    assert 'id="result"' in html
+    assert "route-change" not in html   # 카드는 아직 안 끼워져 있다
