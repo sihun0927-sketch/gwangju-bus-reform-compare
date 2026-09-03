@@ -41,6 +41,10 @@ def main(argv: list[str]) -> int:
         f" · ② 겹침 {result.stages.get(STAGE_OVERLAP, 0)}"
         f" · ③ 사람이 적음 {manual}"
     )
+    print(
+        f"노선 지도 — 점 {result.map_stops}개"
+        f" · 좌표 없어 못 찍은 정류장 {result.map_missing}곳"
+    )
     번들 = result.bundle_counts
     print(
         f"번들 JSON — 정류장 {번들.stops}줄(추정 좌표 {번들.estimated})"

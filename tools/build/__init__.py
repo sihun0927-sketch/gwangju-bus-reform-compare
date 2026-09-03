@@ -17,8 +17,8 @@ from pathlib import Path
 
 # `build`의 셋째 인자 이름이 `bundle`이라 모듈은 별칭으로 받는다(진입점 모양은 이슈 #23이 정했다)
 from . import (
-    branches, bundle as bundle_json, load, notes, rename_dict, render, route_card, route_list,
-    shell, stop_match, terminus_align,
+    branches, bundle as bundle_json, load, notes, rename_dict, render, route_card, route_geometry,
+    route_list, shell, stop_match, terminus_align,
 )
 from .errors import BuildError
 
@@ -36,6 +36,8 @@ class Result:
     bundle: Path
     bundle_bytes: int
     bundle_counts: bundle_json.Counts
+    map_stops: int      # 노선 지도에 찍은 점(표마다 세어 더한 것)
+    map_missing: int    # 좌표가 없어 못 찍은 정류장 — 사이트 전체에서 **이름 몇 개**인지
 
 
 def _align_table_path(source: Path, given: Path | None) -> Path:
@@ -85,7 +87,10 @@ def build(
     after = load.read_after(source)
     replacements = load.read_replacements(source)
     renames = rename_dict.from_rows(load.read_renames(source))
-    facts = notes.collect(renames, load.read_removals(source), load.read_additions(source))
+    additions = load.read_additions(source)
+    facts = notes.collect(renames, load.read_removals(source), additions)
+    stops = load.read_stops(source)
+    canon = load.read_name_canon(_canon_path(source))
 
     pairs, missing = branches.pairs(before, after, replacements)
     if missing:
@@ -95,10 +100,9 @@ def build(
         )
 
     # 번들은 `out/`을 지우기 전에 만들어 본다 — 이름을 못 이으면 지난번 조각을 남긴 채 멈춘다
-    made = bundle_json.make(
-        before, after, load.read_stops(source), load.read_name_canon(_canon_path(source)),
-        renames, load.read_additions(source),
-    )
+    made = bundle_json.make(before, after, stops, canon, renames, additions)
+    # 노선 지도는 번들과 같은 이름 잇기를 쓴다. 다만 추정 좌표는 안 받는다(ADR-0007, `route_geometry`)
+    index = bundle_json.stop_index(stops, canon, renames)
 
     table = terminus_align.read_table(_align_table_path(source, align_table))
     alignments, unwritten = terminus_align.align(pairs, table)
@@ -113,19 +117,25 @@ def build(
     # 카드는 `out/`을 지우기 전에 다 만들어 본다 — 입력이 틀리면 반쯤 쓰다 만 자리를 남기지 않는다
     cards = [route_card.card(row, before_siblings.get(row.before, []), after) for row in replacements]
 
-    for asset in (shell.CSS_SOURCE, shell.PLACE_JS_SOURCE, shell.MAP_JS_SOURCE):
+    assets = (shell.CSS_SOURCE, shell.PLACE_JS_SOURCE, shell.MAP_JS_SOURCE)
+    for asset in assets:
         if not asset.exists():
             raise BuildError(f"화면 자산이 없습니다: {asset}")
 
     _clear(out, source)
     stages: dict[str, int] = {}
     tables: dict[tuple[str, str, str, str], str] = {}
+    map_stops = 0
+    # 못 찍은 정류장은 표마다 더하면 같은 이름을 여러 번 센다. 사이트 전체에서 몇 곳인지를 낸다
+    map_undrawn: set[str] = set()
     for pair in pairs:
         alignment = alignments[pair.key]
         stages[alignment.stage] = stages.get(alignment.stage, 0) + 1
-        tables[pair.key] = _write_table(
-            out, pair, alignment, before_siblings, after_siblings, facts
+        tables[pair.key], drawn = _write_table(
+            out, pair, alignment, before_siblings, after_siblings, facts, index
         )
+        map_stops += len(drawn.stops)
+        map_undrawn |= drawn.undrawn
 
     for card in cards:
         # 카드는 자기 기본 표를 통째로 품는다 — 열자마자 버튼을 누르기 전에도 답이 보인다
@@ -133,15 +143,15 @@ def build(
         _write(out / render.card_url(card.before.number), html)
 
     _write(out / "index.html", render.index_page(route_list.rows(cards), kakao_js_key))
-    shutil.copyfile(shell.CSS_SOURCE, out / shell.CSS)
-    shutil.copyfile(shell.PLACE_JS_SOURCE, out / shell.PLACE_JS)
-    shutil.copyfile(shell.MAP_JS_SOURCE, out / shell.MAP_JS)
+    for asset in assets:
+        shutil.copyfile(asset, out / asset.name)
 
     written = bundle_json.write(bundle_path, made)
 
     return Result(
         out=out, tables=len(pairs), cards=len(cards), stages=stages,
         bundle=bundle_path, bundle_bytes=written, bundle_counts=made.counts,
+        map_stops=map_stops, map_missing=len(map_undrawn),
     )
 
 
@@ -157,7 +167,8 @@ def _write_table(
     before_siblings: dict[str, list[load.Route]],
     after_siblings: dict[str, list[load.Route]],
     facts: notes.Facts,
-) -> str:
+    index: bundle_json.StopIndex,
+) -> tuple[str, route_geometry.Geometry]:
     flipped = bool(alignment.flipped)
     # 뒤집어 맞댄 표의 「개편 후 상행」 칸에는 CSV의 하행이 들어간다 — 개편 전 상행과 같은 방향이다
     after_up = pair.after.down if flipped else pair.after.up
@@ -173,6 +184,8 @@ def _write_table(
         before_siblings.get(pair.before.number, []),
         after_siblings.get(pair.after.number, []),
     )
+    # 지도는 상행만 그린다 — 표의 「개편 후 상행 정류장」 칸에 들어간 바로 그 목록을 쓴다(§7-3 Q7)
+    drawn = route_geometry.geometry(index, pair.before.up, after_up, up)
     html = render.route_change_table(
         pair,
         up,
@@ -181,6 +194,7 @@ def _write_table(
         stop_match.summary(down),
         flipped=flipped,
         row_notes=notes.for_rows(up, down, facts, table_note=table_note),
+        geometry=drawn,
     )
     _write(out / render.fragment_url(pair.key), html)
-    return html
+    return html, drawn

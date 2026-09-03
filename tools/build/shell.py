@@ -43,11 +43,11 @@ PLACE_JS = "place.js"
 PLACE_JS_SOURCE = Path(__file__).resolve().parent / PLACE_JS
 MAP_JS = "map.js"
 MAP_JS_SOURCE = Path(__file__).resolve().parent / MAP_JS
-# 브라우저 조각 스크립트 둘. 순서는 상관없다 — 둘 다 자기 자리만 본다
+# 브라우저 조각 스크립트 둘 — 장소 탭 place.js와 두 탭 공용 map.js. 순서는 상관없다
 BROWSER_SCRIPTS = (PLACE_JS, MAP_JS)
 
 # Kakao 지도 SDK. JS 키는 리포에 없고 빌드 때 환경 변수에서 받아 여기에 박는다(ADR-0005).
-# 키가 없으면 태그를 아예 안 단다 — 그때는 `map`이 지도 자리를 감춘다. 로컬 빌드가 그 자리다.
+# 키가 없으면 태그를 아예 안 단다 — 그때는 `map`이 지도 자리에 한 줄만 남긴다. 로컬 빌드가 그 자리다.
 KAKAO_SDK = "https://dapi.kakao.com/v2/maps/sdk.js"
 KAKAO_JS_KEY_ENV = "KAKAO_JS_KEY"
 # CDN 스크립트 태그 둘(htmx + 공식 확장 하나)과 우리 스크립트 둘(place.js · map.js),
