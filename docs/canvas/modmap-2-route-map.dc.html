@@ -1,0 +1,290 @@
+<meta charset="utf-8">
+<title>노선번호로 찾기 · 모듈 지도</title>
+<link rel="stylesheet" href="canvas.css">
+<style>
+  .artboard { width: 1500px; }
+  .cols, .row { grid-template-columns: 320px 34px 246px 250px 260px 286px; }
+</style>
+
+<div class="artboard">
+  <div class="sheet-head">
+    <h1>노선번호로 찾기 · 모듈 지도</h1>
+    <div class="legend">
+      <span class="key">왼쪽 = 시민이 보는 화면을 위에서 아래로 자른 것 · 화살표 = 그 부분을 담당하는 모듈 행</span>
+      <span class="key"><i class="swatch"></i> 정적 (빌드 때 파일)</span>
+      <span class="key"><i class="swatch browser"></i> 브라우저 JS</span>
+      <span class="key"><i class="swatch build"></i> 빌드 스크립트</span>
+      <span class="key">● 있는 데이터 · ○ 아직 없는 데이터</span>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>화면 (시민이 보는 것)</div>
+    <div></div>
+    <div>화면 모듈 (CONTEXT.md 용어)</div>
+    <div>조각 · 파일/URL</div>
+    <div>만드는 곳 (빌드 스크립트)</div>
+    <div>데이터 파일</div>
+  </div>
+
+  <div class="band">A. 껍데기와 목록 — 이 탭은 Worker 없이 완전히 돈다 (ADR-0002)</div>
+  <div class="row">
+    <div class="screen">
+      <div class="title">버스개편 비교</div>
+      <div class="tabs"><span>장소로 찾기</span><span class="on">노선번호로 찾기</span></div>
+      <div class="field"><b>노선번호 입력 (예: 지원152)</b><span class="side">노선번호</span></div>
+      <div class="num">1</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="cell">
+      <span class="badge static">정적</span>
+      <h3>껍데기</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms"><span class="term">껍데기</span><span class="term">장소로 찾기 / 노선번호로 찾기</span></div>
+      <p>제목 · 탭 · 노선번호 입력칸 · 안내문</p>
+    </div>
+    <div class="cell">
+      <span class="badge static">정적</span>
+      <h3 class="mono">index.html</h3>
+      <p>정적 자산 그대로 나감. htmx · CSS · Kakao SDK 로더 포함</p>
+    </div>
+    <div class="cell">
+      <span class="badge build">빌드</span>
+      <h3 class="mono">shell</h3>
+      <p>껍데기 템플릿 → <code>index.html</code>. 두 탭 공용</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data"><li class="none">없음 — 데이터와 무관</li></ul>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="screen">
+      <div class="field"><b>지원15</b><span class="side">노선번호</span></div>
+      <div class="opt on">지원15 <span>간선15</span></div>
+      <div class="opt">지원152 <span>급행1003 · 228</span></div>
+      <div style="font-size:10.5px; color:var(--ink-faint); margin-top:5px;">
+        브라우저가 103개 중 「지원15」가 든 것만 남긴다
+      </div>
+      <div class="num">2</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="cell">
+      <span class="badge static">정적</span>
+      <h3>자동완성 후보</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms"><span class="term">자동완성 후보</span></div>
+      <p>번호 103개. 값 = 번호, 설명 = 대체 노선 이름들.
+        <b>표 필터는 두지 않는다</b> — 좁히기는 이 후보가 맡는다(§7-3 Q1)</p>
+    </div>
+    <div class="cell">
+      <span class="badge static">정적</span>
+      <h3 class="mono">index.html 안 &lt;datalist&gt;</h3>
+      <p>브라우저가 그리는 목록이라 <b>우리 스크립트가 없다</b>. 고르면 htmx <code>path-params</code>
+        확장이 <code>route/{number}.html</code>을 부른다</p>
+    </div>
+    <div class="cell">
+      <span class="badge build">빌드</span>
+      <h3 class="mono">route_list</h3>
+      <p>비교표 103행에서 <code>&lt;datalist&gt;</code>와 목록 표를 함께 쓴다</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data"><li class="have">노선개편 전후 비교표.csv</li></ul>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="screen">
+      <div style="font-size:12px; font-weight:700; margin-bottom:5px;">노선번호 개편안</div>
+      <table class="grid">
+        <tr><th>개편 전 노선</th><th>개편 후 노선</th></tr>
+        <tr><td>순환01</td><td>간선01 · 간선11</td></tr>
+        <tr><td>좌석02</td><td>직행1001 · 직행1002 · 급행1003</td></tr>
+        <tr style="background:var(--teal-soft);"><td>문흥18</td><td>간선18 · 지선10</td></tr>
+        <tr><td>두암181</td><td>대체 노선 없음</td></tr>
+      </table>
+      <div style="font-size:10.5px; color:var(--ink-faint); text-align:right; margin-top:3px;">… 99행 더</div>
+      <div class="num">3</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="cell">
+      <span class="badge static">정적</span>
+      <h3>노선 개편 목록 표</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms">
+        <span class="term">노선 개편 목록 표</span><span class="term">대체 노선</span><span class="term">방면</span>
+      </div>
+      <p>화면 제목 「노선번호 개편안」. 늘 103행이다. 한 줄 누름 → 노선 변화 카드</p>
+    </div>
+    <div class="cell">
+      <span class="badge static">정적</span>
+      <h3 class="mono">index.html 안 &lt;table&gt;</h3>
+      <p>행마다 <code>hx-get="route/{번호}.html"</code> <code>hx-target="#result"</code></p>
+    </div>
+    <div class="cell">
+      <span class="badge build">빌드</span>
+      <h3 class="mono">route_list</h3>
+      <p>비교표 103행 → 103줄. 개편 전 번호와 대체 노선 이름. 번호 잇기는 ADR-0006(못 찾는 쌍 0)</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data">
+        <li class="have">노선개편 전후 비교표.csv</li>
+        <li class="have">광주권역 개편전 노선안.csv</li>
+        <li class="have">광주권역 개편후 노선안.csv</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="band">B. 노선 변화 카드 — 번호 하나당 조각 파일 하나</div>
+  <div class="row">
+    <div class="screen">
+      <div style="font-size:12.5px; font-weight:700;">문흥18 노선 변화</div>
+      <div style="font-size:10.5px; color:var(--ink-soft); margin:4px 0;">장등동 → 진곡산단 · 상행 58 · 하행 62</div>
+      <div style="font-size:11px;">개편 후에는 <span class="term">간선18</span> <span class="term">지선10</span></div>
+      <div style="display:flex; gap:5px; margin-top:7px;">
+        <div style="flex:1; border:1px solid var(--line); border-radius:4px; padding:3px 6px;">
+          <div style="font-size:10px; color:var(--ink-faint);">상행 · 유지</div><b>49곳</b>
+        </div>
+        <div style="flex:1; border:1px solid var(--line); border-radius:4px; padding:3px 6px; background:var(--worse);">
+          <div style="font-size:10px; color:var(--ink-faint);">상행 · 경유 제외</div><b>9곳</b>
+        </div>
+        <div style="flex:1; border:1px solid var(--line); border-radius:4px; padding:3px 6px; background:var(--better);">
+          <div style="font-size:10px; color:var(--ink-faint);">상행 · 경유 추가</div><b>3곳</b>
+        </div>
+      </div>
+      <div class="num">4</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="cell">
+      <span class="badge static">정적 조각</span>
+      <h3>노선 변화 카드</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms">
+        <span class="term">노선 변화 카드</span><span class="term">방면 선택</span>
+        <span class="term">대체 노선 선택</span><span class="term">상행·하행 요약 칸</span>
+      </div>
+      <p>제목 「&lt;번호(방면)&gt; 노선 변화」 · 기·종점 · 대체 노선 목록 · 버튼 줄 셋 ·
+        요약 칸 여섯 · <b>노선 지도 자리</b> · 노선 변화 표 자리</p>
+    </div>
+    <div class="cell">
+      <span class="badge static">정적 조각</span>
+      <h3 class="mono">route/{번호}.html</h3>
+      <p>버튼마다
+        <code>hx-get="route/{번호}/{방면}/{대체}/{개편후방면}.html"</code>.
+        기본 방면 · 첫 대체 노선의 표를 미리 품는다</p>
+    </div>
+    <div class="cell">
+      <span class="badge build">빌드</span>
+      <h3 class="mono">route_card</h3>
+      <p>방면 분리(<code>branches</code>, 6개 번호 14행) · 대체 노선 목록 · 기·종점 · 상행/하행 정류장 수.
+        파일 103개</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data">
+        <li class="have">노선개편 전후 비교표.csv</li>
+        <li class="have">광주권역 개편전 노선안.csv</li>
+        <li class="have">광주권역 개편후 노선안.csv</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="screen">
+      <div style="height:76px; background:var(--band); border-radius:5px;">
+        <svg width="100%" height="76" viewBox="0 0 290 76">
+          <path d="M16 60 C 80 34, 150 26, 272 14" fill="none" stroke="#0e6b5c" stroke-width="7" stroke-linecap="round"/>
+          <path d="M16 60 C 120 62, 190 40, 272 14" fill="none" stroke="#1d4ed8" stroke-width="3"/>
+          <circle cx="16" cy="60" r="4.5" fill="#9aa5a2"/>
+          <circle cx="108" cy="32" r="4" fill="#c0392b"/>
+          <circle cx="205" cy="34" r="4" fill="#1d4ed8"/>
+          <circle cx="272" cy="14" r="4.5" fill="#9aa5a2"/>
+        </svg>
+      </div>
+      <div style="font-size:10.5px; margin-top:5px; color:var(--ink-soft);">
+        굵은 초록 = 개편 전 · 가는 파랑 = 대체 노선 · 점: 유지 회색 · 경유 제외 빨강 · 경유 추가 파랑
+      </div>
+      <div class="num">5</div>
+    </div>
+    <div class="arrow browser">⇢</div>
+    <div class="cell dotted">
+      <span class="badge browser">브라우저</span>
+      <h3>노선 지도</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms"><span class="term">노선 지도</span></div>
+      <p><b>상행만</b> 그린다. 개편 전은 굵은 초록 아래, 대체 노선은 가는 파랑 위. 표의 줄 색은 그대로 둔다(§7-3 Q7·8)</p>
+    </div>
+    <div class="cell">
+      <span class="badge static">정적 조각</span>
+      <h3 class="mono">표 조각 안 &lt;script type="application/json"&gt;</h3>
+      <p><b>카드가 아니라 표에 실린다</b> — 표 하나가 지도 하나이기 때문이다(§7-3 Q6).
+        자리와 범례는 카드에 있고, htmx가 끼운 뒤 <code>htmx:afterSwap</code>에서 그린다</p>
+    </div>
+    <div class="cell">
+      <span class="badge build">빌드</span>
+      <h3 class="mono">route_geometry</h3>
+      <p>정류장 이름 → 좌표 배열. 좌표 없는 정류장은 건너뛰고 앞뒤를 잇는다.
+        점 14,808개 · 못 찍은 정류장 52곳(ADR-0007)</p>
+      <p class="note">그리는 <code>map</code>은 장소 탭과 같은 브라우저 코드다</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data">
+        <li class="have">data/source/stops.csv (정류장 4,746개, ADR-0007)</li>
+        <li class="have">명칭 변경 정류소.csv (이름 잇기)</li>
+        <li>Kakao JS 키 (Cloudflare 환경 변수, ADR-0005)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="band">C. 노선 변화 표 — 개편 전 방면 × 대체 노선 × 개편 후 방면마다 조각 파일 하나 (205개, ADR-0003 · 0006)</div>
+  <div class="row">
+    <div class="screen">
+      <table class="grid">
+        <tr><th>#</th><th>개편 전 상행</th><th>개편 후 상행</th><th>비고</th></tr>
+        <tr><td>1</td><td>장등동</td><td>장등동</td><td></td></tr>
+        <tr><td>9</td><td>문흥고가</td><td>문화육교</td><td>명칭 변경: 문흥고가 → 문화육교</td></tr>
+        <tr><td>15</td><td class="better"></td><td class="better">전남대동문</td><td></td></tr>
+        <tr><td>52</td><td class="worse">광산소방서입구</td><td class="worse"></td><td></td></tr>
+      </table>
+      <div style="font-size:10.5px; color:var(--ink-faint); text-align:right; margin-top:3px;">… 66행 중 넷</div>
+      <div style="font-size:10px; color:var(--ink-soft); margin-top:5px;">
+        붉은 바탕 = 이 노선의 경유에서 제외 · 초록 바탕 = 경유에 추가. <b>정류장이 없어진 것이 아니다</b>
+      </div>
+      <div class="num">6</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="cell">
+      <span class="badge static">정적 조각</span>
+      <h3>노선 변화 표</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms">
+        <span class="term">노선 변화 표</span><span class="term">유지 · 경유 제외 · 경유 추가</span>
+        <span class="term">비고</span>
+      </div>
+      <p>여섯 열 · 줄 색 · 범례 · 요약 칸이 상태를 말한다. 비고는 CSV 사실 넷만
+        — 명칭 변경 · 통폐합 · 이전 · 신설</p>
+    </div>
+    <div class="cell">
+      <span class="badge static">정적 조각</span>
+      <h3 class="mono">route/{번호}/{방면}/<br>{대체}/{개편후방면}.html</h3>
+      <p>요약 칸 여섯 + <code>&lt;table&gt;</code> + 범례 + 좌표 JSON + 뒤집어 맞댄 경우 한 줄</p>
+    </div>
+    <div class="cell">
+      <span class="badge build">빌드</span>
+      <h3>표를 만드는 모듈 다섯</h3>
+      <p><code>rename_dict</code>(명칭 사전) → <code>terminus_align</code>(기·종점 정렬) →
+        <code>stop_match</code>(기·종점 정류장 대조, LCS) → <code>notes</code>(비고) →
+        <code>render</code>(파일 쓰기)</p>
+      <p class="note">단계별 입출력은 「빌드 스크립트 단계」 아트보드에</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data">
+        <li class="have">광주권역 개편전/개편후 노선안.csv</li>
+        <li class="have">노선개편 전후 비교표.csv</li>
+        <li class="have">명칭 변경 정류소.csv</li>
+        <li class="have">신설 정류소.csv</li>
+        <li class="have">통폐합이전정류소.csv</li>
+        <li class="have">data/기종점정렬표.csv (18행, 사람이 적음)</li>
+      </ul>
+    </div>
+  </div>
+</div>

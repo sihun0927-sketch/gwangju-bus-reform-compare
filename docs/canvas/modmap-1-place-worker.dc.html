@@ -1,0 +1,224 @@
+<meta charset="utf-8">
+<title>장소로 찾기 · Worker 단계</title>
+<link rel="stylesheet" href="canvas.css">
+<style>
+  .artboard { width: 1240px; }
+  .cols, .row { grid-template-columns: 40px 176px 268px 268px 398px; }
+  .row { margin-bottom: 8px; }
+  .step {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ink);
+    color: #fff;
+    border-radius: 7px;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .step.build { background: var(--amber); }
+  .step.browser { background: var(--orange); }
+  .foot {
+    margin-top: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: var(--band);
+  }
+  .foot h3 { margin: 0 0 3px; font-size: 12.5px; }
+  .foot p { margin: 0; font-size: 11.5px; color: var(--ink-soft); }
+</style>
+
+<div class="artboard">
+  <div class="sheet-head">
+    <h1>장소로 찾기 · Worker 단계</h1>
+    <div class="legend">
+      <span class="key">요청마다 실행. 데이터는 빌드가 만든 <b>번들 JSON</b> 하나뿐이다 — D1은 쓰지 않는다(ADR-0008)</span>
+      <span class="key">● 있는 데이터 · ○ 아직 없는 데이터</span>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>#</div>
+    <div>모듈</div>
+    <div>입력</div>
+    <div>출력</div>
+    <div>규칙 · 용어 · 주의</div>
+  </div>
+
+  <div class="row">
+    <div class="step build">0</div>
+    <div class="cell">
+      <span class="badge build">빌드</span>
+      <h3 class="mono">bundle</h3>
+      <p>번들 JSON 만들기 (배포 전 한 번)</p>
+    </div>
+    <div class="cell">
+      <ul class="data">
+        <li class="have">광주권역 개편전/개편후 노선안.csv</li>
+        <li class="have">노선개편 전후 비교표.csv</li>
+        <li class="have">명칭 변경 정류소.csv (이름 잇기)</li>
+        <li class="have">data/source/stops.csv 좌표 4,746</li>
+      </ul>
+    </div>
+    <div class="cell">
+      <ul class="data">
+        <li class="have"><code>worker/data.json</code> 2.02MB (gzip 0.28MB)</li>
+        <li class="have">stops 4,803 · routes 230 · route_stops 42,390</li>
+        <li class="have">transfers 6,566 · route_links 7,250</li>
+        <li class="have">노선안 정류장 bbox</li>
+      </ul>
+    </div>
+    <div class="cell">
+      <p>노선번호 탭 빌드의 0~2단계(<code>load</code> · <code>rename_dict</code> · <code>branches</code>)를
+        그대로 쓴다 — 같은 모듈, 출력만 JSON. 좌표 없는 57곳은 앞뒤 중점의 <b>추정 좌표</b>이고 파일에는 안 쓴다(ADR-0007)</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="step">1</div>
+    <div class="cell dashed">
+      <span class="badge worker">Worker</span>
+      <h3 class="mono">places</h3>
+      <p class="mono">GET /places?q=</p>
+    </div>
+    <div class="cell">
+      <ul class="data">
+        <li class="none">검색어 <code>q</code></li>
+        <li>KAKAO_REST_KEY (Worker 환경 변수)</li>
+        <li class="have">번들: 노선안 정류장 bbox</li>
+      </ul>
+    </div>
+    <div class="cell">
+      <p>자동완성 후보 <code>&lt;ul&gt;</code> 조각<br>
+        (이름 · 주소 · <code>data-lat</code> · <code>data-lng</code>)</p>
+    </div>
+    <div class="cell">
+      <p>Kakao 로컬 REST 응답을 그대로 HTML로. 검색 범위는 bbox + 5km(<code>rect</code>).
+        두 글자부터 · 상위 5개 · 같은 검색어는 Cache API에 하루. 빈 결과·실패는 한 줄 문구 조각(ADR-0005)</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="step">2</div>
+    <div class="cell dashed">
+      <span class="badge worker">Worker</span>
+      <h3 class="mono">compare</h3>
+      <p class="mono">GET /compare?from=&amp;to=</p>
+    </div>
+    <div class="cell">
+      <ul class="data">
+        <li class="none">좌표 둘</li>
+        <li class="have">번들: stops · routes · route_stops</li>
+        <li class="have">번들: transfers · route_links</li>
+      </ul>
+    </div>
+    <div class="cell">
+      <p><b>개편 전 카드 + 개편 후 카드</b> 조각 (머리에 상태)<br>
+        경로 지도 좌표 JSON (조각 안)<br>
+        다른 경로 카드용 <b>경로 키</b></p>
+    </div>
+    <div class="cell">
+      <p>안이 다섯이다 — <code>network</code>(번들을 노선망 둘로) → <code>candidates</code>(도보권 후보)
+        → <code>search</code>(직행 · 환승 1~2회) → <code>rank</code>(추정 소요 시간 → 환승 → 도보)
+        → <code>render</code>. 노선망 각각 한 번. 두 지점이 500m 이하면 「걸어갈 수 있는 거리」.
+        상태는 카드 머리에 서고 <b>판정 문장은 없다</b>(§7 Q11)</p>
+      <p style="color:var(--orange);"><b>요청당 CPU 중앙값 20~21ms · p90 32ms</b> — 무료 요금제 상한 10ms를
+        넘는다. 80%가 <code>walkableStops</code>와 <code>갈아탄다</code>다(§6-4 · §8)</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="step">3</div>
+    <div class="cell dashed">
+      <span class="badge worker">Worker</span>
+      <h3 class="mono">journey</h3>
+      <p class="mono">GET /journey/{경로 키}</p>
+    </div>
+    <div class="cell">
+      <ul class="data">
+        <li class="none">경로 키 (노선망 · 두 지점 · 구간마다 노선과 정류장)</li>
+        <li class="have">번들: stops · route_stops</li>
+      </ul>
+    </div>
+    <div class="cell">
+      <p>다른 경로 카드 조각<br>(정류장 목록 · 지표 · 좌표 JSON)</p>
+    </div>
+    <div class="cell">
+      <p><code>compare</code>가 찾은 경로 하나를 다시 그린다. <b>탐색을 다시 하지 않는다</b> —
+        구간마다 방향·순번만 고른다. 저장소가 없어 키만으로 열리고, 번들과 안 맞으면 404와 한 줄 문구</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="step">4</div>
+    <div class="cell dashed">
+      <span class="badge worker">Worker</span>
+      <h3 class="mono">geometry</h3>
+      <p>경로 → 점 목록</p>
+    </div>
+    <div class="cell">
+      <ul class="data">
+        <li class="none">경로 하나 (구간마다 승·하차 순번)</li>
+        <li class="have">번들: stops 좌표</li>
+      </ul>
+    </div>
+    <div class="cell">
+      <p>구간마다 점 배열 + 두 지점</p>
+    </div>
+    <div class="cell">
+      <p><code>compare</code>와 <code>journey</code>가 함께 쓴다. 한 자리에 줄이 여럿이면(길 양쪽)
+        앞 점에 가장 가까운 줄을 고르고, 좌표 없는 줄은 건너뛴다. 도로 형상은 두지 않는다(직선)</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="step browser">5</div>
+    <div class="cell dotted">
+      <span class="badge browser">브라우저</span>
+      <h3 class="mono">place</h3>
+      <p>장소 선택</p>
+    </div>
+    <div class="cell">
+      <ul class="data">
+        <li class="none"><code>/places</code> 조각의 항목 (<code>data-lat</code> · <code>data-lng</code>)</li>
+      </ul>
+    </div>
+    <div class="cell">
+      <p>입력칸에 이름·좌표 확정 → 둘 다 정해지면 <code>/compare</code> 조각을 결과 영역에</p>
+    </div>
+    <div class="cell">
+      <p>Worker가 아니다. htmx가 끼운 후보를 소비하는 쪽이고, <code>map</code>과 함께 브라우저 코드 둘이다</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="step browser">6</div>
+    <div class="cell dotted">
+      <span class="badge browser">브라우저</span>
+      <h3 class="mono">map</h3>
+      <p>경로 지도 · 노선 지도 그리기</p>
+    </div>
+    <div class="cell">
+      <ul class="data">
+        <li class="none">조각 안 좌표 JSON</li>
+        <li>Kakao JS 키 (Cloudflare 환경 변수)</li>
+      </ul>
+    </div>
+    <div class="cell">
+      <p>타일 위 점선(개편 전) · 실선(개편 후) · 정류장 점</p>
+    </div>
+    <div class="cell">
+      <p><code>htmx:afterSwap</code>에서 조각 안 JSON을 읽어 Kakao JS로 그린다.
+        그리는 함수는 <code>window.busMap.draw(자리, 선들)</code> 하나이고 <b>좌표 배열만 받는다</b> —
+        노선번호 탭의 노선 지도가 그대로 부른다(ADR-0005)</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <h3>테스트 경계</h3>
+    <p><code>compare</code>의 안 다섯은 번들만 있으면 Node에서 배열로 검사한다. Worker 진입점 셋은
+      <code>worker/*.test.js</code>가 응답 HTML을 보고, 요청당 CPU는 <code>tools/measure_cpu.mjs</code>가
+      <code>wrangler dev</code>의 workerd에서 따로 잰다(§6-4). 브라우저 코드 둘은 수동 확인이고 증거는
+      <code>docs/images/checks/</code>에 둔다.</p>
+  </div>
+</div>
