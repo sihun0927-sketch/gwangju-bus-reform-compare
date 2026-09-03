@@ -51,7 +51,7 @@ TRANSFER_WALK_M = 350
 # 지구 반지름(m). 고르는 값이 아니라 물리 상수다 — Worker의 `candidates.js`도 같은 값을 쓴다
 EARTH_RADIUS_M = 6371000.0
 
-# 환승 쌍을 찾을 때 정류장을 담는 칸의 한 변(m). 한 칸과 그 이웃 여덟 칸만 재면 350m 안이 다 든다.
+# 환승 쌍을 찾을 때 정류장을 담는 상자의 한 변(m). 한 상자와 그 이웃 여덟만 재면 350m 안이 다 든다.
 # 3,054개를 전부 맞대면 460만 번인데 이렇게 하면 수만 번이라 빌드가 몇 초 짧아진다
 GRID_M = TRANSFER_WALK_M
 
@@ -238,11 +238,11 @@ def transfer_pairs(
         grid.setdefault((int(s["lat"] // 세로), int(s["lng"] // 가로)), []).append(sid)
 
     pairs: list[tuple[str, str, int]] = []
-    for (y, x), 칸 in grid.items():
-        # 이웃 아홉 칸. 칸 한 변이 상한과 같아 그 밖은 잴 것도 없이 350m를 넘는다
+    for (y, x), 상자 in grid.items():
+        # 이웃 아홉 상자. 한 변이 상한과 같아 그 밖은 잴 것도 없이 350m를 넘는다
         이웃 = [j for dy in (-1, 0, 1) for dx in (-1, 0, 1)
                for j in grid.get((y + dy, x + dx), ())]
-        for i in 칸:
+        for i in 상자:
             for j in 이웃:
                 if place[j] <= place[i]:
                     continue      # 쌍은 한 번만. 앞 차례 쪽이 왼쪽에 온다
@@ -302,7 +302,7 @@ def route_links(
 
 
 def _middle_lat(used: set[str], stops: dict[str, dict]) -> float:
-    """칸의 가로 크기를 잴 위도. 광주 노선망은 남북으로 좁아 한 값이면 된다."""
+    """상자의 가로 크기를 잴 위도. 광주 노선망은 남북으로 좁아 한 값이면 된다."""
     return sum(stops[i]["lat"] for i in used) / len(used)
 
 

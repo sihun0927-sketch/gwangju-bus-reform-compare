@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import gzip
 import sys
 import tempfile
 from pathlib import Path
@@ -25,7 +26,7 @@ from tools.build import load, rename_dict  # noqa: E402
 
 SOURCE = Path(__file__).resolve().parent.parent / "data" / "source"
 
-# 무료 요금제의 번들 상한(압축 뒤). 압축 전 크기가 이 안이면 넉넉히 든다
+# 무료 요금제의 번들 상한. wrangler가 재는 것은 **압축 뒤** 크기다(ADR-0008 결정 3)
 FREE_PLAN_LIMIT_MB = 3.0
 
 
@@ -42,9 +43,16 @@ def main() -> None:
     data = made.data
 
     with tempfile.TemporaryDirectory() as 임시:
-        크기 = bundle_json.write(Path(임시) / "data.json", made)
+        자리 = Path(임시) / "data.json"
+        크기 = bundle_json.write(자리, made)
+        # wrangler가 재는 것은 압축 뒤 크기다. 상한과 견줄 값이라 여기서 같이 잰다
+        눌린 = len(gzip.compress(자리.read_bytes(), 9))
 
-    print(f"번들 한 장 {크기 / 1024 / 1024:.2f}MB (무료 요금제 상한 {FREE_PLAN_LIMIT_MB}MB, 압축 뒤 기준)")
+    MB = 1024 * 1024
+    print(
+        f"번들 한 장 압축 전 {크기 / MB:.2f}MB · gzip {눌린 / MB:.2f}MB"
+        f" — 무료 요금제 상한 {FREE_PLAN_LIMIT_MB}MB(압축 뒤)의 {눌린 / MB / FREE_PLAN_LIMIT_MB:.0%}"
+    )
     print(f"  stops {counts.stops:,}줄 (추정 좌표 {counts.estimated})")
     print(f"  routes {counts.routes} · route_stops {counts.route_stops:,}줄")
     print(f"  transfers {counts.transfers:,}줄 · route_links {counts.route_links:,}줄")

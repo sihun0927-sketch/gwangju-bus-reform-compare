@@ -16,8 +16,7 @@
  * `legs[0].board`와 마지막 `alight`만 도보권 후보라 `walk`(지점까지 도보 m)를 달고 있다. 가운데
  * 정류장은 번들에서 꺼낸 줄이고, 그 사이를 걷는 거리는 `transferWalks`에 구간 사이마다 하나씩 있다.
  */
-import { estimateSeconds } from "./rank.js";
-import { MAX_TRANSFERS } from "./rules.js";
+import { MAX_TRANSFERS, estimateSeconds } from "./rules.js";
 
 /**
  * 출발 후보에서 도착 후보까지 가는 경로 전부. 환승은 `MAX_TRANSFERS`까지다.
@@ -28,11 +27,11 @@ import { MAX_TRANSFERS } from "./rules.js";
 export function journeys(network, from, to) {
   const 하차 = 하차표(network, to);
   const 경로 = [];
-  let 손 = 추린다(첫_승차(network, from));
+  let 손 = 첫_승차(network, from);
   for (let 환승 = 0; 손.length; 환승 += 1) {
     for (const 한칸 of 손) 내린다(한칸, 하차, 경로);
     if (환승 >= MAX_TRANSFERS) break;
-    손 = 추린다(갈아탄다(network, 손));
+    손 = 갈아탄다(network, 손);
   }
   return 경로;
 }
@@ -93,6 +92,11 @@ function 내린다(손, 하차, 경로) {
  *
  * 한 경로에서 같은 노선을 두 번 타지 않는다 — 되돌아 탈 바에는 안 내리면 된다.
  * 노선 · 방향 · 승차 순번이 같으면 싼 쪽만 남긴다.
+ *
+ * 그 둘이 겹치는 자리에 아주 좁은 구멍이 하나 있다. 같은 자리에 이르는 사슬 둘 중 **느린 쪽만**
+ * 아직 안 탄 노선이 있고 다음 구간이 하필 그 노선이면, 남은 빠른 사슬이 「같은 노선 두 번 금지」에
+ * 걸려 그 길을 못 간다. 막으려면 「여기까지 탄 노선의 조합」까지 열쇠에 넣어야 하는데 그러면 손에 든
+ * 것이 조합만큼 불어난다. 되돌아 타는 자리에서만 생기는 일이라 값을 치르지 않는다.
  */
 function 갈아탄다(network, 손) {
   const 다음 = new Map();
@@ -113,44 +117,6 @@ function 갈아탄다(network, 손) {
   }
   return [...다음.values()];
 }
-
-/**
- * 뒤에 무슨 일이 있어도 못 이길 칸을 버린다. **기본 경로는 달라지지 않는다.**
- *
- * 어떤 칸에서 다음에 내리는 곳의 순번을 `끝`이라 하면 그때까지 걸리는 시간은
- * `칸.seconds + (끝 - 칸.order) × 정류장당 초` = `점수(칸) + 끝 × 정류장당 초`다.
- * 뒤엣항은 칸과 무관하므로, **같은 노선·방향에서는 점수가 낮은 칸이 어느 하차 지점에서도 빠르다.**
- * 순번은 낮을수록 갈 수 있는 곳이 많다. 그래서 점수와 순번이 둘 다 앞서는 칸이 있으면 진 칸이다.
- *
- * 점수가 낮은 순으로 훑으며 「지금까지 본 것 중 가장 낮은 순번」보다 낮은 것만 남기면 그 경계만 남는다.
- * 이 한 번으로 손에 든 것이 수천에서 수백으로 줄고, 그만큼이 요청당 CPU다.
- *
- * 진 칸도 경로가 되기는 한다 — 다만 **더 느린** 경로다. 그래서 카드에 싣는 기본 경로(1등)는 추리기
- * 전과 완전히 같지만, 「다른 경로」(티켓 5)에 쓸 2·3등은 달라질 수 있다 — 실측에서 노선 조합이
- * 277 → 187로 줄고 한 쌍에서 17분짜리 대신 18분짜리가 2등이 되었다. 그 값으로 링크 훑기를 35% 줄인다.
- */
-function 추린다(손) {
-  const 갈래 = new Map();
-  for (const 한칸 of 손) {
-    const 목록 = 갈래.get(한칸.lane);
-    if (목록) 목록.push(한칸);
-    else 갈래.set(한칸.lane, [한칸]);
-  }
-  const 남길 = [];
-  for (const 목록 of 갈래.values()) {
-    목록.sort((a, b) => 점수(a) - 점수(b) || a.order - b.order);
-    let 가장_낮은_순번 = Infinity;
-    for (const 한칸 of 목록) {
-      if (한칸.order >= 가장_낮은_순번) continue;
-      가장_낮은_순번 = 한칸.order;
-      남길.push(한칸);
-    }
-  }
-  return 남길;
-}
-
-/** 이 칸에서 순번 0에 내린다고 쳤을 때의 추정 소요 시간(초). 하차 지점과 무관한 몫이다. */
-const 점수 = (한칸) => estimateSeconds(한칸.stops - 한칸.order, 한칸.walk);
 
 /** 승차 순번보다 뒤이면서 가장 이른 순번. 같은 방향에 없으면 `null`. */
 function 이른_순번(rides, side, 뒤로) {

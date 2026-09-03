@@ -66,6 +66,7 @@ npm test                         # Worker 검사 — 빌드를 한 번 돌린 �
 npm run deploy:dry               # wrangler deploy --dry-run
 python tools/measure_direction.py    # 실측 — 기·종점 정렬 단계별 개수 (§6-1)
 python tools/measure_transfers.py    # 실측 — 번들 크기와 환승 표 줄 수 (§6-2)
+node tools/measure_search.mjs        # 실측 — 상태 분포와 요청 시간 (§6-3, 빌드가 먼저다)
 ```
 
 `out/`과 `worker/data.json`은 빌드 산출물이라 저장소에 없다. **배포도 테스트도 빌드가 먼저다.**
@@ -83,7 +84,8 @@ ADR-0008이 정한 표 **다섯이 다 들어갔다**: 정류장 4,803줄(`stops
 `GET /compare?from=lat,lng&to=lat,lng`가 개편 전 카드와 개편 후 카드 한 쌍을 돌려주고, 머리에
 「직행 · 환승 1회 · 환승 2회 · 경로 없음」이 선다. 환승 줄에는 내리는 곳 → 타는 곳과 환승 도보가 있다.
 아직 「준비 중」인 것은 `/places`와 `/journey/…`이고, 화면의 입력칸도 아직 자리뿐이다.
-남은 실측 하나는 요청당 CPU다(`docs/architecture.md` §6-2 · §8).
+남은 실측 하나는 요청당 CPU다 — 지금은 중앙값 32~36ms로 무료 요금제 상한 10ms를 크게 넘는다
+(`docs/architecture.md` §6-3 · §8).
 설계는 2026-09-03에 닫혔다 — `docs/architecture.md` §7 표와 ADR-0008.
 
 번호 잇기 규칙은 ADR-0006으로 닫혔고 못 찾는 쌍 0이다. 정류장 좌표도 들어왔다 —

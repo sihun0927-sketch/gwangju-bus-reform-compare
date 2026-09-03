@@ -19,17 +19,11 @@ const 벗김 = (글) => String(글).replace(/[&<>"']/g, (c) => 문자[c]);
 const 미터 = (m) => `${Math.round(m)}m`;
 
 /**
- * 카드에 적는 도보 합계. 구간마다 반올림한 값을 더한다 — 시민이 눈으로 줄마다의 값을 더한 것과
- * 합계가 1m 어긋나 보이지 않게. 환승 도보도 함께 센다(CONTEXT 「환승 도보」).
+ * 카드에 적는 도보 합계. `rank`가 붙인 걷는 구간 목록을 **구간마다 반올림해서** 더한다 —
+ * 시민이 눈으로 줄마다의 값을 더한 것과 합계가 1m 어긋나 보이지 않게. 환승 도보도 그 목록에 있다.
  */
 const 도보_합계 = (journey) =>
-  미터(
-    [
-      journey.legs[0].board.walk,
-      journey.legs[journey.legs.length - 1].alight.walk,
-      ...journey.transferWalks,
-    ].reduce((합, m) => 합 + Math.round(m), 0),
-  );
+  미터(journey.walks.reduce((합, m) => 합 + Math.round(m), 0));
 const 분 = (초) => `${Math.round(초 / SECONDS_PER_MINUTE)}분`;
 
 const 안내 = (글, 노선망) =>
@@ -112,6 +106,10 @@ function 경로(network, journey) {
 /**
  * 환승 한 줄. 같은 줄에서 갈아타면 걸을 일이 없으므로 거리 대신 그렇다고 적는다 —
  * 「환승 도보 0m」는 값이 빠진 것처럼 보인다.
+ *
+ * 이름이 같은데 줄만 다른 자리(길 양쪽)라면 「A → A」로 보일 텐데, 번들의 환승 지점 7,250줄에
+ * 그런 쌍은 **0줄**이다 — 두 노선이 같은 이름에 서면 같은 줄에도 서서 그쪽이 더 짧기 때문이다.
+ * 생기면 그때 가르면 된다. 지금 가르면 검사도 못 쓰는 갈래가 하나 는다.
  */
 const 환승 = (내리는_곳, 타는_곳, walk) =>
   내리는_곳.id === 타는_곳.id
@@ -119,10 +117,14 @@ const 환승 = (내리는_곳, 타는_곳, walk) =>
     : `<span class="transfer">환승 도보 ${미터(walk)}`
       + ` · ${정류장(내리는_곳)} → ${정류장(타는_곳)}</span>`;
 
+/** 시가 공표한 배차간격이 없을 때 그 자리에 서는 말 (CONTEXT 「지표」). */
+const 배차_없음 = "정보 없음";
+const 배차_값 = (v) => (v === null || v === undefined ? 배차_없음 : 벗김(v));
+
 /** 카드 아래 수치 줄 (CONTEXT 「지표」). 배차간격은 값이 없으면 「정보 없음」이다. */
 function 지표(network, journey) {
   const 노선 = journey.legs.map((leg) => leg.route);
-  // 배차는 노선마다 따로다. 아직 어느 노선도 자료가 없어 한 줄이면 되고, 자료가 들어오면 갈린다
+  // 배차는 노선마다 따로다. 아직 어느 노선도 자료가 없어 한 줄로 합치고, 자료가 들어오면 갈린다
   const 배차 = 노선.map((route) => network.headway(route));
   const 줄 = [
     `예상 시간 ${분(journey.seconds)}`,
@@ -130,9 +132,9 @@ function 지표(network, journey) {
     `노선 ${노선.map((route) => 노선_이름(network, route)).join(" · ")}`,
     `정류장 ${journey.stopsPassed}곳`,
     `도보 합계 ${도보_합계(journey)}`,
-    `배차간격 ${배차.every((v) => v === null || v === undefined)
-      ? "정보 없음"
-      : 배차.map((v) => (v === null || v === undefined ? "정보 없음" : 벗김(v))).join(" · ")}`,
+    `배차간격 ${배차.every((v) => 배차_값(v) === 배차_없음)
+      ? 배차_없음
+      : 배차.map(배차_값).join(" · ")}`,
   ];
   return 목록("ul", "metrics", 줄);
 }

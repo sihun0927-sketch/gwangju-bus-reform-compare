@@ -77,10 +77,10 @@ function 노선망(key, label) {
  * 두 번 지나기도 해서 목록이다.
  */
 function 잇는다(links, from, to, here, there, walk, hereRides, thereRides) {
-  const 자리 = { here, there, walk, hereRides, thereRides };
-  const 칸 = links.get(from);
-  if (칸) 칸.set(to, 자리);
-  else links.set(from, new Map([[to, 자리]]));
+  const 이음 = { here, there, walk, hereRides, thereRides };
+  const 묶음 = links.get(from);
+  if (묶음) 묶음.set(to, 이음);
+  else links.set(from, new Map([[to, 이음]]));
 }
 
 /** 개편 전 · 개편 후 순서. 화면의 카드 차례가 이 차례다. */
