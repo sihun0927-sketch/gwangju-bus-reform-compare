@@ -234,12 +234,13 @@ def test_대체_노선이_없는_번호는_표가_없다(site: Path) -> None:
     assert not (site / "route" / "두암181").exists()
 
 
-def test_기종점_정렬표는_18행이고_확인_열은_비어_있다() -> None:
+def test_기종점_정렬표는_18행이고_확인_열이_다_차_있다() -> None:
+    # 2026-09-04 확인: 18쌍 모두 겹침이 0~9곳뿐이라 방향이 표를 거의 안 바꾼다(architecture §7-3 Q4)
     with io.open(ALIGN_TABLE, encoding="utf-8-sig", newline="") as f:
         표 = list(csv.DictReader(f))
     assert len(표) == 18
     assert {r["개편전상행이맞닿는쪽"] for r in 표} <= {"상행", "하행"}
-    assert all(r["확인"] == "" for r in 표)
+    assert all(r["확인"].strip() for r in 표)
 
 
 def test_정렬표에_사람이_안_적은_쌍이_있으면_멈춘다(tmp_path: Path) -> None:
@@ -469,6 +470,22 @@ def test_목록_줄은_눌리는_것으로_읽히고_끼운_자리를_보여_준
     assert 'aria-label="두암181 — 대체 노선 없음"' in list_row(index(site), "두암181")
 
 
+def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조각을_부른다(site: Path) -> None:
+    """자동완성 후보는 <datalist> 103개 — 값은 번호, 설명은 대체 노선(§7-3 Q1·Q2). 우리 스크립트는 없다."""
+    html = index(site)
+    입력칸 = re.search(r'<input id="number"[^>]*>', html).group(0)
+    assert "disabled" not in 입력칸
+    assert 'list="route-numbers"' in 입력칸 and 'name="number"' in 입력칸
+    assert 'hx-ext="path-params"' in 입력칸 and 'hx-get="route/{number}.html"' in 입력칸
+    assert 'hx-target="#result"' in 입력칸 and 'hx-trigger="change"' in 입력칸
+    후보 = re.findall(r'<option value="([^"]*)" label="([^"]*)">', html)
+    assert len(후보) == 103
+    assert ("지원152", "간선18 · 지선10") in 후보 or ("문흥18", "간선18 · 지선10") in 후보
+    assert ("두암181", "대체 노선 없음") in 후보
+    assert [n for n, _ in 후보] == [re.search(r'route/(.*?)\.html', r).group(1) for r in list_rows(html)]
+    assert "htmx-ext-path-params" in html and 'integrity="sha384-' in html
+
+
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
     html = index(site)
     문흥18줄 = list_row(html, "문흥18")
@@ -479,7 +496,8 @@ def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
 
 
 def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
-    주소 = re.findall(r'hx-get="([^"]+)"', index(site))
+    # 입력칸의 `route/{number}.html`은 틀이라 뺀다 — 값이 들어가야 주소가 된다
+    주소 = [u for u in re.findall(r'hx-get="([^"]+)"', index(site)) if "{" not in u]
     assert len(주소) == 103
     for url in 주소:
         assert (site / url).exists(), url
