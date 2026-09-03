@@ -17,6 +17,7 @@ CIRCULAR = "순환 노선 · 하행 없음"
 ONE_WAY = "편도 운행 · 하행 없음"
 RENAMED = "명칭 변경"
 ADDITION = "신설 정류소"
+MERGED = "통폐합"
 JOIN = " · "
 
 
@@ -29,24 +30,50 @@ class Note:
 
 
 @dataclass(frozen=True)
+class Absorbed:
+    """통폐합 한 건 — 정류장 `into`가 흡수된 정류장 하나. CSV의 「A(B)」에서 A가 `into`, B가 열쇠다."""
+
+    into: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class Facts:
     """비고가 읽는 CSV에서 뽑은 사실. 열쇠는 정류장 이름이다 — 노선안 CSV에 ID가 없다."""
 
     renames: RenameDict
-    removals: dict[str, Removal]   # 개편 전에만 있는 정류장에 붙는다
+    removals: dict[str, Removal]   # 폐지·이전. 개편 전에만 있는 정류장에 붙는다
+    absorbed: dict[str, Absorbed]  # 통폐합. 흡수된 쪽(B)이 개편 전 열에 나오는 줄에 붙는다
     additions: frozenset[str]      # 개편 후에만 있는 정류장에 붙는다
 
     def note_for(self, line: Line) -> Note:
-        """줄 하나의 비고. 해당하는 사실이 없으면 빈 비고다."""
+        """줄 하나의 비고. 해당하는 사실이 없으면 빈 비고다.
+
+        통폐합은 줄의 상태를 가리지 않는다 — 통폐합 CSV가 폐지됐다는 정류장이 개편 후 노선안에
+        남아 있어도(서방사거리육교) 노선안을 고쳐 읽지 않고, 그 줄이 「유지」인 채로 비고만 붙인다
+        (architecture §7-3 Q3). 두 공표 자료가 어긋난다는 것을 그대로 보이는 쪽을 택했다.
+        """
+        cells: list[Note] = []
         if line.state == KEPT and self.renames.renamed(line.before, line.after):
-            return Note(f"{RENAMED}: {line.before} → {line.after}")
+            cells.append(Note(f"{RENAMED}: {line.before} → {line.after}"))
+        if line.before in self.absorbed:
+            found = self.absorbed[line.before]
+            cells.append(Note(f"{MERGED}: {found.into}에 흡수", found.reason))
         if line.state == DROPPED:
             removal = self.removals.get(line.before)
             if removal:
-                return Note(removal.kind, removal.reason)
+                cells.append(Note(removal.kind, removal.reason))
         if line.state == ADDED and line.after in self.additions:
-            return Note(ADDITION)
-        return Note()
+            cells.append(Note(ADDITION))
+        return _merge(cells)
+
+
+def split_absorbed(stop: str) -> tuple[str, str]:
+    """통폐합 CSV의 「A(B)」 → (A, B). B에 괄호가 또 있어도(오치한전(오치한전(북))) 첫 괄호에서 가른다."""
+    head, sep, tail = stop.partition("(")
+    if not sep or not tail.endswith(")"):
+        raise BuildError(f"통폐합 행의 정류소명은 「남는 쪽(흡수된 쪽)」 꼴이어야 합니다: {stop!r}")
+    return head, tail[:-1]
 
 
 def collect(
@@ -60,6 +87,7 @@ def collect(
     다른 말을 하면 어느 쪽을 적을지 우리가 고를 수 없으므로 멈춘다 — `rename_dict`와 같은 태도다.
     """
     by_name: dict[str, Removal] = {}
+    absorbed: dict[str, Absorbed] = {}
     for row in removals:
         seen = by_name.setdefault(row.stop, row)
         if (seen.kind, seen.reason) != (row.kind, row.reason):
@@ -67,7 +95,12 @@ def collect(
                 f"통폐합이전 CSV의 같은 정류장이 다른 말을 합니다: {row.stop}"
                 f" — 「{seen.kind}」 / 「{row.kind}」"
             )
-    return Facts(renames=renames, removals=by_name, additions=frozenset(additions))
+        if row.kind == MERGED:
+            into, gone = split_absorbed(row.stop)
+            absorbed[gone] = Absorbed(into, row.reason)
+    return Facts(
+        renames=renames, removals=by_name, absorbed=absorbed, additions=frozenset(additions)
+    )
 
 
 def _join(values: list[str]) -> str:
