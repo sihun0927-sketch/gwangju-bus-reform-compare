@@ -8,11 +8,6 @@ CSV는 정류장 ID 단위라 같은 옛 이름이 여러 줄이고, 새 이름�
 
 `stop_match`는 대조 전에 `canon`으로 이름을 옛 이름 쪽에 모은다 — 새 이름 하나에 옛 이름이
 하나뿐이라 그 방향이 함수가 된다. 어느 새 이름과 만나도 같은 정류장으로 잡히는 것이 이 때문이다.
-
-`bundle`은 이름 대신 **CSV의 ID**를 쓴다(`new_to_ars`). 옛 이름의 표기가 `stops.csv`와 어긋나는
-행이 있고(「도로교통공단.대신파크」 대 「도로교통공단 대신파크」), 무엇보다 옛 이름 하나가 새 이름
-둘로 갈릴 때(법원입구 → 1번출구 / 2번출구) 이름으로는 어느 줄이 어느 쪽인지 가릴 수 없다.
-ID는 `stops.csv`의 ARS_ID와 102/102로 이어진다(ADR-0007).
 """
 from __future__ import annotations
 
@@ -28,7 +23,6 @@ class RenameDict:
 
     old_to_new: dict[str, frozenset[str]] = field(default_factory=dict)
     new_to_old: dict[str, str] = field(default_factory=dict)
-    new_to_ars: dict[str, frozenset[str]] = field(default_factory=dict)
 
     def canon(self, stop: str) -> str:
         """대조에 쓸 이름. 새 이름이면 옛 이름으로, 아니면 그대로."""
@@ -43,13 +37,10 @@ def from_rows(rows: list[Rename]) -> RenameDict:
     """CSV 행들 → 명칭 사전. 한 새 이름에 옛 이름이 둘이면 어느 쪽으로 모을지 알 수 없어 멈춘다."""
     old_to_new: dict[str, set[str]] = {}
     new_to_old: dict[str, str] = {}
-    new_to_ars: dict[str, set[str]] = {}
     for row in rows:
         if not row.old or not row.new:
             continue
         old_to_new.setdefault(row.old, set()).add(row.new)
-        if row.ars_id:
-            new_to_ars.setdefault(row.new, set()).add(row.ars_id)
         seen = new_to_old.setdefault(row.new, row.old)
         if seen != row.old:
             raise BuildError(
@@ -59,5 +50,4 @@ def from_rows(rows: list[Rename]) -> RenameDict:
     return RenameDict(
         old_to_new={k: frozenset(v) for k, v in old_to_new.items()},
         new_to_old=new_to_old,
-        new_to_ars={k: frozenset(v) for k, v in new_to_ars.items()},
     )

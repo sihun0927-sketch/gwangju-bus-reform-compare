@@ -1,18 +1,14 @@
-// Cloudflare Workers 배포 설정. `out/`을 정적 자산으로 올리고, 장소 탭 세 경로만 Worker가 받는다.
+// Cloudflare Workers 배포 설정. Worker 코드 없이 `out/`만 정적 자산으로 올린다.
 // 대시보드 빌드 설정: 빌드 명령 `python -m tools.build`, 배포 명령 `npx wrangler deploy`.
-// `main`이 읽는 `worker/data.json`은 그 빌드가 만드는 파일이라 저장소에 없다 — 배포 전에 빌드부터.
-// D1 바인딩은 없다. 데이터는 번들 JSON뿐이다(ADR-0008).
+// 장소 탭 Worker(ADR-0008)가 생기면 "main": "worker/index.js"와
+// "run_worker_first": ["/places*", "/compare*", "/journey/*"]를 더한다. D1 바인딩은 없다.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "gwangju-bus-reform-compare",
-  "main": "worker/index.js",
   "compatibility_date": "2026-09-01",
   "assets": {
     "directory": "./out",
-    "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
-    "not_found_handling": "none",
-    // 여기 적힌 것만 Worker 코드가 받는다. 노선번호 탭 조각은 전과 똑같이 정적 자산으로 나간다
-    "run_worker_first": ["/places*", "/compare*", "/journey/*"]
+    "not_found_handling": "none"
   }
 }

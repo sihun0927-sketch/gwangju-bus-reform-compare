@@ -50,8 +50,7 @@ D1을 두면 부품이 하나 늘고(스키마 · `wrangler d1 execute` · 로�
 ## 따라오는 것
 
 - 빌드 스크립트의 `seed` 모듈은 `bundle`로 이름이 바뀌고 출력은 `d1/seed.sql`이 아니라 `worker/data.json`.
-- `wrangler.jsonc`에 `main`과 `run_worker_first`, 그리고 Worker가 나머지 주소를 정적 자산으로
-  넘길 때 쓰는 `assets.binding`을 더한다. D1 바인딩은 없다.
+- `wrangler.jsonc`에 `main`과 `run_worker_first`만 더한다. D1 바인딩은 없다.
 - Worker 코드는 JavaScript(그릴링 Q6). 규칙 상수(도보권 500/1,000m · 환승 도보 350m · 정류장당 20초 ·
   도보 4km/h · 후보 8개)는 `worker/rules.js` 한 곳.
 - 경로 키(`/journey/{id}`)는 구성 요소(노선망 · STATION_NUM · 노선 이름)를 base64url로 적은 것이라 번들만

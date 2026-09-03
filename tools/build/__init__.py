@@ -1,13 +1,13 @@
 """빌드 스크립트 — CSV를 읽어 노선번호 탭의 정적 조각을 쓴다 (ADR-0002).
 
-배포 전에 한 번 돌린다. 진입점은 `build(source, out, bundle)` 하나이고, `out/`을 비우고 다시 쓴다.
+배포 전에 한 번 돌린다. 진입점은 `build(source, out)` 하나이고, `out/`을 비우고 다시 쓴다.
 노선 변화 표의 규칙(번호 잇기 · 명칭 사전 · 방면 · 기·종점 정렬 · 기·종점 정류장 대조 · 비고)은 전부 여기 산다.
 
-    python -m tools.build                                   # data/source → out/ + worker/data.json
-    python -m tools.build data/source out worker/data.json  # 경로를 직접 줄 때
+    python -m tools.build                    # data/source → out/
+    python -m tools.build data/source out    # 경로를 직접 줄 때
 
-산출물은 둘이다 — `out/`의 정적 조각(껍데기 `index.html` 한 장, 노선 변화 카드 103개,
-노선 변화 표 205개)과 장소 탭 Worker가 import하는 번들 JSON 한 장(ADR-0008).
+이번 범위는 껍데기 `index.html` 한 장(노선 개편 목록 표 103줄을 품는다)과
+노선 변화 표 조각 205개, 노선 변화 카드 103개다. 장소 탭은 자리만 있다.
 """
 from __future__ import annotations
 
@@ -15,10 +15,9 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-# `build`의 셋째 인자 이름이 `bundle`이라 모듈은 별칭으로 받는다(진입점 모양은 이슈 #23이 정했다)
 from . import (
-    branches, bundle as bundle_json, load, notes, rename_dict, render, route_card, route_list,
-    shell, stop_match, terminus_align,
+    branches, load, notes, rename_dict, render, route_card, route_list, shell, stop_match,
+    terminus_align,
 )
 from .errors import BuildError
 
@@ -33,19 +32,11 @@ class Result:
     tables: int
     cards: int
     stages: dict[str, int]
-    bundle: Path
-    bundle_bytes: int
-    bundle_counts: bundle_json.Counts
 
 
 def _align_table_path(source: Path, given: Path | None) -> Path:
     """기·종점 정렬표는 사람이 적는 파일이라 `data/source/`가 아니라 그 위 `data/`에 있다."""
     return given if given is not None else source.parent / terminus_align.TABLE_CSV
-
-
-def _canon_path(source: Path) -> Path:
-    """이름 잇기 표도 사람이 아니라 `tools/build_stops.py`가 쓰는 파일이라 `data/` 바로 아래에 있다."""
-    return source.parent / load.NAME_CANON_JSON
 
 
 def _clear(out: Path, source: Path) -> None:
@@ -60,17 +51,12 @@ def _clear(out: Path, source: Path) -> None:
     out.mkdir(parents=True)
 
 
-def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = None) -> Result:
-    """`source`의 CSV를 읽어 `out/`에 정적 조각을, `bundle`에 번들 JSON을 쓴다.
+def build(source: Path, out: Path, *, align_table: Path | None = None) -> Result:
+    """`source`의 CSV를 읽어 `out/`에 노선 변화 표 조각을 쓴다.
 
-    번들 자리에 기본값을 두지 않는다 — 기본값(`worker/data.json`)은 명령줄의 것이고, 여기에
-    두면 자리를 안 준 호출이 작업 트리의 배포 산출물을 조용히 덮어쓴다.
-
-    번호를 못 잇거나, 기·종점 정렬표에 사람이 안 적은 쌍이 있거나, 노선안 정류장 이름을
-    `stops.csv`의 줄에 못 이으면 목록을 담은 `BuildError`를 낸다.
+    번호를 못 잇거나 기·종점 정렬표에 사람이 안 적은 쌍이 있으면 목록을 담은 `BuildError`를 낸다.
     """
     source, out = Path(source).resolve(), Path(out).resolve()
-    bundle_path = Path(bundle).resolve()
     before = load.read_before(source)
     after = load.read_after(source)
     replacements = load.read_replacements(source)
@@ -83,12 +69,6 @@ def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = N
             "비교표의 번호를 노선안에서 못 찾았습니다 (규칙은 ADR-0006):\n  "
             + "\n  ".join(missing)
         )
-
-    # 번들은 `out/`을 지우기 전에 만들어 본다 — 이름을 못 이으면 지난번 조각을 남긴 채 멈춘다
-    made = bundle_json.make(
-        before, after, load.read_stops(source), load.read_name_canon(_canon_path(source)),
-        renames, load.read_additions(source),
-    )
 
     table = terminus_align.read_table(_align_table_path(source, align_table))
     alignments, unwritten = terminus_align.align(pairs, table)
@@ -103,9 +83,8 @@ def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = N
     # 카드는 `out/`을 지우기 전에 다 만들어 본다 — 입력이 틀리면 반쯤 쓰다 만 자리를 남기지 않는다
     cards = [route_card.card(row, before_siblings.get(row.before, []), after) for row in replacements]
 
-    for asset in (shell.CSS_SOURCE, shell.PLACE_JS_SOURCE):
-        if not asset.exists():
-            raise BuildError(f"화면 자산이 없습니다: {asset}")
+    if not shell.CSS_SOURCE.exists():
+        raise BuildError(f"화면 CSS가 없습니다: {shell.CSS_SOURCE}")
 
     _clear(out, source)
     stages: dict[str, int] = {}
@@ -124,14 +103,8 @@ def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = N
 
     _write(out / "index.html", render.index_page(route_list.rows(cards)))
     shutil.copyfile(shell.CSS_SOURCE, out / shell.CSS)
-    shutil.copyfile(shell.PLACE_JS_SOURCE, out / shell.PLACE_JS)
 
-    written = bundle_json.write(bundle_path, made)
-
-    return Result(
-        out=out, tables=len(pairs), cards=len(cards), stages=stages,
-        bundle=bundle_path, bundle_bytes=written, bundle_counts=made.counts,
-    )
+    return Result(out=out, tables=len(pairs), cards=len(cards), stages=stages)
 
 
 def _write(path: Path, html: str) -> None:
