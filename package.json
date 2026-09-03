@@ -1,0 +1,13 @@
+{
+  "name": "gwangju-bus-reform-compare",
+  "private": true,
+  "description": "Workers Builds 진입점. 빌드는 파이썬(tools/build)이 하고, 여기서는 그 명령을 부르기만 한다.",
+  "scripts": {
+    "build": "python -m tools.build",
+    "deploy": "wrangler deploy",
+    "deploy:dry": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "4.128.0"
+  }
+}
