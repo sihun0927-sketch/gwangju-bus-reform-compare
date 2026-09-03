@@ -1,8 +1,10 @@
 # data
 
-## source/ — 시가 공표한 원본 CSV 6개 (2026-09-02 반입, UTF-8 BOM)
+## source/ — 빌드 스크립트가 읽는 입력 CSV 7개
 
-고치지 않는다. 빌드 스크립트가 읽기만 한다.
+여섯은 시가 공표한 원본(2026-09-02 반입, UTF-8 BOM)이고, `stops.csv` 하나는 광주 BIS API에서
+받아 만든 것이다(2026-09-03, ADR-0007). **손으로 고치지 않는다.** 빌드 스크립트는 읽기만 한다 —
+예외는 `stops.csv`뿐이고, 그것도 `tools/build_stops.py`가 `back_up/api_stops.json`에서 다시 만든다.
 
 | 파일 | 행 | 열 | 쓰이는 곳 |
 |---|---|---|---|
@@ -12,6 +14,7 @@
 | `명칭 변경 정류소.csv` | 102 | 구분 · 현 정류소 · ID · 변경정류소 | 명칭 사전(ADR-0003), 비고 |
 | `신설 정류소.csv` | 68 | 구분 · 정류소 | 비고 "신설 정류소", 좌표 채우기 대상(ADR-0004) |
 | `통폐합이전정류소.csv` | 16 | 지역 · 구분 · 정류소명 · ID · 통폐합사유 | 비고 "폐지/통폐합/이전 · 사유" |
+| `stops.csv` | 4,746 | STATION_NUM · BUSSTOP_NAME · ARS_ID · NEXT_BUSSTOP · BUSSTOP_ID · LONGITUDE · NAME_E · LATITUDE | 노선 지도 좌표, D1 stops 표. **시 공표 아님** — 광주 BIS API(ADR-0007) |
 
 ## 알아 둘 함정
 
@@ -29,11 +32,27 @@
   `입암`은 `입암(남구)`·`입암(북구)`로 갈라진다.
 - **통폐합의 `A(B)` 표기**는 B를 A로 흡수했다는 뜻. ID 칸도 `1001(1010)`.
 - **월드컵경기장정문**은 명칭 변경(→ 월드컵경기장역)과 폐지(2호선 개통 때 재운영) 양쪽에 있다.
-- **좌표가 없다.** 여섯 파일 모두. 좌표는 `stops.json`(ADR-0004).
+- **좌표가 없다.** 시 공표 여섯 파일 모두. 좌표는 같은 폴더의 `stops.csv`(ADR-0007).
 
-## stops.json — 정류장 좌표 (아직 없음)
+## 정류장 좌표 — 광주 BIS API (ADR-0007)
 
-4,312개, 좌표 null 27개. 출처와 반입 절차는 ADR-0004.
+| 파일 | 무엇 | 만드는 것 |
+|---|---|---|
+| `back_up/api_stops.json` | API 응답 원본. 고치지 않는다 | `python tools/fetch_stops.py` (키는 `.env`의 `GWANGJU_BUS_KEY`) |
+| `source/stops.csv` | 정류장 4,746개 × 8열, 좌표 결측 0. **좌표의 유일한 출처** | `python tools/build_stops.py` |
+| `name_canon.json` | 노선안 표기 → API 정식 표기 8개 | `python tools/build_stops.py` |
+
+`source/stops.csv` 열: `STATION_NUM, BUSSTOP_NAME, ARS_ID, NEXT_BUSSTOP, BUSSTOP_ID, LONGITUDE, NAME_E, LATITUDE`
+
+### 알아 둘 함정
+
+- **API 이름 46개에 꼬리 공백이 있다**(`'대산         '`). `build_stops.py`가 떼어 낸다. 다시 넣지 말 것.
+- **`ARS_ID`가 1,697개 비어 있다** — 광주 밖(전남 통합분). ID 조인은 광주 정류장에만 된다.
+  명칭 변경 CSV의 ID 102개는 모두 `ARS_ID`와 맞는다.
+- `NEXT_BUSSTOP` 528개, `NAME_E` 188개가 비어 있다. `LATITUDE`·`LONGITUDE`는 4,746개 **전부** 있다.
+- **이름을 대조하기 전에 `name_canon.json`을 통과시킨다.** 값이 `null`이면 좌표 없음이다.
+- 개편 전 노선안 정류장 1,499개는 100% 붙는다. 개편 후 1,507개 중 1,369(90.8%).
+  못 붙는 138개는 명칭 변경 새 이름 81 · 신설 56 · `광주교대역2번출구` 1이다.
 
 ## 기종점정렬표.csv — 사람이 적는 기·종점 정렬 (아직 없음)
 
