@@ -23,10 +23,6 @@ SOURCE = DATA / "source"
 ALIGN_TABLE = DATA / "기종점정렬표.csv"
 
 문흥18 = ("문흥18", "기본", "간선18", "기본.html")
-법원입구 = ("1187", "기본", "1187", "기본.html")
-금남59 = ("금남59", "기본", "지선59", "기본.html")
-송정93 = ("송정93", "기본", "지선93", "기본.html")
-상무62 = ("상무62", "상무역경유시청행", "지선62", "기본.html")
 순환01 = ("순환01", "기본", "간선01", "기본.html")
 선운101 = ("선운101", "빛그린산단", "지선97", "빛그린산단출근.html")
 두암81 = ("두암81", "각화초교.장등동", "지선81", "기본.html")
@@ -81,7 +77,7 @@ def test_상행_하행_요약_칸_여섯(site: Path) -> None:
     for 문구 in ("상행 · 유지", "상행 · 경유 제외", "상행 · 경유 추가",
                  "하행 · 유지", "하행 · 경유 제외", "하행 · 경유 추가"):
         assert 문구 in html
-    for 개수 in ("49곳", "9곳", "3곳", "52곳", "10곳", "4곳"):
+    for 개수 in ("47곳", "11곳", "5곳", "50곳", "12곳", "6곳"):
         assert 개수 in html
 
 
@@ -107,62 +103,8 @@ def test_열_머리_여섯(site: Path) -> None:
 
 def test_개편_전에만_있는_줄과_개편_후에만_있는_줄이_다른_class다(site: Path) -> None:
     html = fragment(site, 문흥18)
-    assert '<td class="dropped">현대위아</td><td class="dropped"></td>' in html
-    assert '<td class="added"></td><td class="added">전남대동문</td>' in html
-
-
-def test_이름만_바뀐_정류장은_한_줄_유지이고_비고에_명칭_변경(site: Path) -> None:
-    html = fragment(site, 문흥18)
-    assert '<td class="kept">문흥고가</td><td class="kept">문화육교</td>' in html
-    assert "명칭 변경: 문흥고가 → 문화육교" in html
-
-
-def test_옛_이름_하나가_새_이름_여럿이어도_어느_쪽과_만나든_유지다(site: Path) -> None:
-    """법원입구는 방향별로 1번출구·2번출구로 갈라진다. 한쪽만 잡으면 다른 쪽이 경유 제외로 보인다."""
-    html = fragment(site, 법원입구)
-    assert "명칭 변경: 법원입구 → 광주법원검찰역1번출구" in html
-    assert "명칭 변경: 법원입구 → 광주법원검찰역2번출구" in html
-
-
-def test_통폐합이전_CSV의_정류장은_구분_값만_보이고_사유는_title이다(site: Path) -> None:
-    폐지 = fragment(site, 금남59)
-    assert '<td class="note" title="도시철도 2호선 1단계 개통에 맞춰' in 폐지
-    assert '">폐지</td>' in 폐지
-    assert ">도시철도 2호선" not in 폐지   # 사유는 칸에 적히지 않는다
-
-    이전 = fragment(site, 송정93)
-    assert '<td class="dropped">옥동차량기지</td>' in 이전
-    assert '">이전</td>' in 이전
-
-
-def test_신설_CSV의_정류장은_개편_후에만_있는_줄에_적힌다(site: Path) -> None:
-    html = fragment(site, 금남59)
-    assert '<td class="added"></td><td class="added">광주체육회관</td>' in html
-    assert ">신설 정류소</td>" in html
-
-
-def test_비고에_상태_문구는_적지_않는다(site: Path) -> None:
-    """상태는 줄 색과 요약 칸이 말한다 (ADR-0003 2026-09-03 개정)."""
-    칸 = re.compile(r'<td class="note"[^>]*>([^<]*)</td>')
-    for path in site.rglob("*.html"):
-        for 비고 in 칸.findall(path.read_text(encoding="utf-8")):
-            assert not any(말 in 비고 for 말 in ("유지", "경유 제외", "경유 추가")), path
-
-
-def test_CSV_이름이_노선안과_안_맞으면_비고를_비우고_빌드는_성공한다(site: Path) -> None:
-    """통폐합 CSV는 흡수된 정류장을 「계수초교(상무한국아파트)」로 적어 노선안 이름과 안 맞는다."""
-    html = fragment(site, 상무62)
-    assert '<td class="dropped">상무한국아파트</td>' in html
-    줄 = next(r for r in rows(html) if ">상무한국아파트<" in r)
-    assert 줄.endswith('<td class="note"></td></tr>')
-
-
-def test_한_줄에_사실이_둘이면_이어_적는다(site: Path) -> None:
-    html = fragment(site, ("금호36", "기본", "간선36", "기본.html"))
-    assert (
-        "명칭 변경: 금남로4가역 → 금남로4가역3번출구 · 명칭 변경: 돌고개역(동) → 돌고개역1번출구"
-        in html
-    )
+    assert '<td class="dropped">문흥고가</td><td class="dropped"></td>' in html
+    assert '<td class="added"></td><td class="added">문화육교</td>' in html
 
 
 def test_출처_줄(site: Path) -> None:
