@@ -44,7 +44,7 @@ export default {
     if (pathname.startsWith(JOURNEY_PREFIX)) {
       // 키가 번들과 안 맞으면 `journey`가 404와 한 줄 문구를 준다. htmx는 200이 아닌 응답을
       // 끼우지 않으므로 그 문구는 **주소를 그대로 연 사람**이 본다 — 키는 남에게 보낼 수 있는 링크다
-      const { html, status } = journey(pathname.slice(JOURNEY_PREFIX.length));
+      const { html, status } = journey(pathname.slice(JOURNEY_PREFIX.length), searchParams);
       return htmlResponse(html, status);
     }
     return env.ASSETS.fetch(request);

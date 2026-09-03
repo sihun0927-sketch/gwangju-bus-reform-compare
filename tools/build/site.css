@@ -259,30 +259,102 @@ ul.summary li.added .count { color: var(--better-ink); }
   border-radius: 50%;
 }
 
-.compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); align-items: start; }
+/* 카드 둘을 늘려 **바닥에서 맞춘다** — 지표가 같은 높이에 와야 눈을 옮기지 않고 견준다.
+   경로 줄 길이가 달라 생기는 빈 자리는 메우지 않는다 (CONTEXT 「개편 전 카드 / 개편 후 카드」) */
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); align-items: stretch; }
 .journey-card {
   background: var(--card-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
 }
-.journey-card h3 { margin: 0 0 10px; font-size: 17px; }
-.journey-card .network { color: var(--ink-muted); font-weight: 400; font-size: 14px; }
-.journey-card .status { color: var(--accent); }
-.journey-card ol.legs { margin: 0 0 10px; padding-left: 20px; font-size: 14px; }
-.journey-card .transfer { color: var(--accent-soft); }
-.journey-card .estimated { color: var(--ink-muted); font-size: 12px; }
-ul.metrics { display: flex; flex-wrap: wrap; gap: 6px 10px; list-style: none; margin: 0; padding: 0; }
-ul.metrics li {
+.journey-card h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.journey-card .network {
   background: var(--field-bg);
-  border-radius: 6px;
-  padding: 3px 8px;
+  border-radius: 999px;
+  padding: 2px 10px;
+  color: var(--ink-muted);
+  font-weight: 500;
   font-size: 13px;
 }
-.estimate-note { margin: 10px 0 0; color: var(--ink-muted); font-size: 12px; }
+.journey-card .status { color: var(--accent); }
+.journey-card .estimated { color: var(--ink-muted); font-size: 12px; font-weight: 400; }
+
+/* 경로 줄 — 핀 하나가 자리 하나다 (CONTEXT 「경로 줄」).
+   핀에서 다음 핀으로 내려가는 선이 버스 구간이면 실선, 걷는 구간이면 회색 점선이다 */
+ol.steps { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+ol.steps li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 0 14px 22px;
+}
+ol.steps li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--card-bg);
+}
+ol.steps li::after {
+  content: "";
+  position: absolute;
+  left: 3.5px;
+  top: 15px;
+  bottom: 0;
+  border-left: 2px solid var(--accent);
+}
+ol.steps li.walk::before { border-color: var(--map-walk); }
+ol.steps li.walk::after { border-left-style: dotted; border-left-color: var(--map-walk); }
+ol.steps li:last-child { padding-bottom: 0; }
+ol.steps li:last-child::after { display: none; }
+ol.steps .sub { color: var(--ink-muted); font-size: 12px; }
+.chip {
+  align-self: flex-start;
+  background: var(--panel-bg);
+  border-radius: 6px;
+  padding: 2px 8px;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+/* 지표 — 레이블 왼쪽, 값 오른쪽. 두 카드의 행이 늘 맞는다 (CONTEXT 「지표」).
+   `margin-top: auto`가 표와 그 아래 단추를 카드 바닥으로 민다 */
+dl.metrics {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  row-gap: 6px;
+  margin: 0;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  font-size: 14px;
+}
+dl.metrics dt { color: var(--ink-muted); }
+dl.metrics dd { margin: 0; text-align: right; font-weight: 600; }
+
+/* 카드 한 쌍 아래 각주 한 벌 — 카드 안에 두면 같은 문장이 두 번 서고 카드 높이도 먹는다 */
+ul.notes { list-style: none; margin: 12px 0 0; padding: 0; color: var(--ink-muted); font-size: 12px; }
+ul.notes li { margin-top: 4px; padding-left: 10px; text-indent: -10px; }
+ul.notes li::before { content: "· "; }
 .notice { margin: 0; color: var(--ink-muted); }
 
-.journey-card button { margin-top: 10px; margin-right: 6px; }
+.journey-card button { margin-top: 10px; align-self: flex-start; }
 .show-on-map, .more {
   background: var(--card-bg);
   border: 1px solid var(--line);
@@ -293,6 +365,9 @@ ul.metrics li {
   color: var(--accent);
   cursor: pointer;
 }
+/* 글자가 「지도에 표시」 ↔ 「지도에 표시 중」으로 바뀌어도 단추 폭이 흔들리지 않게 */
+.show-on-map { min-width: 8em; text-align: center; }
+.more::after { content: " ›"; }
 .show-on-map:hover, .more:hover { background: var(--better-bg); border-color: var(--accent-soft); }
 .show-on-map.on { background: var(--accent); border-color: var(--accent); color: #fff; cursor: default; }
 /* 다른 경로가 다 들어오면 더 볼 것이 없다 — 단추를 감춘다(htmx `once`라 다시 부르지도 않는다) */

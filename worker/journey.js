@@ -24,7 +24,7 @@
  * ⚠️ 키에 두 지점이 들어 있으므로 **경로 키를 남에게 보내면 출발·도착 좌표가 함께 간다.** 링크를
  * 공유해도 열리게 하려면 어느 방법으로든 지점이 키에 있어야 하니 피할 수 없고, 여기 적어 둔다.
  */
-import { metresBetween, point } from "./candidates.js";
+import { metresBetween, placeNames, point } from "./candidates.js";
 import { geometry } from "./geometry.js";
 import { NETWORKS } from "./network.js";
 import { measure } from "./rank.js";
@@ -48,7 +48,7 @@ export function key(network, journey, from, to) {
 }
 
 /** `GET /journey/{id}`의 조각과 상태. 키가 번들과 안 맞으면 404와 한 줄 문구다. */
-export function journey(id) {
+export function journey(id, params) {
   const 되살린 = 되살린다(id);
   if (!되살린) return { html: render.brokenJourney(), status: 404 };
   const { network, journey: 경로, from, to } = 되살린;
@@ -56,6 +56,7 @@ export function journey(id) {
     html: render.alternative(network, 경로, {
       key: id,
       geometry: geometry(network, 경로, from, to),
+      places: placeNames(params),
     }),
     status: 200,
   };
