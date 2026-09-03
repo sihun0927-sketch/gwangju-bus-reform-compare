@@ -54,6 +54,14 @@ def notes(site: Path) -> list[tuple[Path, str]]:
     ]
 
 
+def card(site: Path, number: str) -> str:
+    return (site / "route" / f"{number}.html").read_text(encoding="utf-8")
+
+
+def buttons(html: str) -> list[str]:
+    return re.findall(r"<button[^>]*>(.*?)</button>", html)
+
+
 def rows(html: str) -> list[str]:
     return re.findall(r"<tr><td class=\"index\">.*?</tr>", html)
 
@@ -73,8 +81,11 @@ def run_cli(data: Path, out: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_명령_하나로_노선_변화_표_205개가_생긴다(site: Path) -> None:
-    assert len(list(site.rglob("*.html"))) == 205
+def test_명령_하나로_껍데기와_노선_변화_표_205개와_카드_103개가_생긴다(site: Path) -> None:
+    assert (site / "index.html").exists()
+    assert len(list(site.glob("route/*/*/*/*.html"))) == 205
+    assert len(list(site.glob("route/*.html"))) == 103
+    assert len(list(site.rglob("*.html"))) == 309
 
 
 def test_out을_비우고_다시_쓴다(tmp_path: Path) -> None:
@@ -308,3 +319,184 @@ def test_비교표의_번호를_노선안에서_못_찾으면_멈춘다(tmp_path
     끝 = run_cli(data, tmp_path / "out")
     assert 끝.returncode == 1
     assert "없는번호999" in 끝.stderr
+
+
+def test_카드는_제목과_기종점과_정류장_수를_보인다(site: Path) -> None:
+    html = card(site, "문흥18")
+    assert "<h2>문흥18</h2>" in html
+    assert "장등동 → 진곡산단" in html
+    assert "상행 58곳" in html and "하행 62곳" in html
+
+
+def test_카드에_대체_노선_목록이_기종점과_함께_있다(site: Path) -> None:
+    html = card(site, "문흥18")
+    assert "간선18" in html and "지선10" in html
+    assert "하남고등학교 → 장등동" in html   # 간선18의 기·종점
+
+
+def test_카드는_기본_방면과_첫_대체_노선의_표를_미리_품는다(site: Path) -> None:
+    html = card(site, "문흥18")
+    assert "<h3>문흥18 노선 변화</h3>" in html
+    # 품은 표는 조각과 같은 표다 — 수치도 test_상행_하행_요약_칸_여섯과 같아야 한다(명칭 사전 적용값)
+    for 개수 in ("49곳", "9곳", "3곳", "52곳", "10곳", "4곳"):
+        assert 개수 in html
+
+
+def test_대체_노선_버튼_줄은_모든_카드에_있다(site: Path) -> None:
+    html = card(site, "문흥18")
+    assert "대체 노선을 고르세요" in html
+    assert buttons(html) == ["간선18", "지선10"]
+    assert 'hx-get="route/문흥18/기본/간선18/기본.html"' in html
+    assert 'hx-get="route/문흥18/기본/지선10/기본.html"' in html
+
+
+def test_방면이_하나뿐인_노선에는_방면_버튼_줄이_없다(site: Path) -> None:
+    html = card(site, "문흥18")
+    assert "개편 전 방면을 고르세요" not in html
+    assert "개편 후 방면을 고르세요" not in html
+
+
+def test_개편_전_방면이_여럿이면_그_버튼_줄이_있다(site: Path) -> None:
+    html = card(site, "두암81")
+    assert "개편 전 방면을 고르세요" in html
+    for 방면 in ("각화초교.장등마을", "무등파크.장등동", "각화초교.장등동", "무등파크.장등마을"):
+        assert 방면 in buttons(html)
+
+
+def test_대체_노선에_방면이_있으면_개편_후_방면_버튼_줄이_있다(site: Path) -> None:
+    html = card(site, "선운101")
+    assert "개편 후 방면을 고르세요" in html
+    assert "기본" in buttons(html) and "빛그린산단출근" in buttons(html)
+    assert 'hx-get="route/선운101/송산유원지/지선97/빛그린산단출근.html"' in html
+
+
+def test_방면이_없는_대체_노선에는_개편_후_방면_줄이_붙지_않는다(site: Path) -> None:
+    """선운101의 대체 노선 셋 중 방면이 있는 것은 지선97뿐이다(개편 전 방면 둘 × 한 줄씩)."""
+    html = card(site, "선운101")
+    assert html.count("개편 후 방면을 고르세요") == 2
+    for 줄 in re.findall(r'<div class="choice after-branch">.*?</div>', html, re.S):
+        assert "지선94" not in 줄 and "지선197" not in 줄
+
+
+def test_개편_전_방면이_여럿이면_대체_노선_줄도_방면마다_따로다(site: Path) -> None:
+    """줄 하나가 든 주소는 하나뿐이라, 방면 줄과 대체 노선 줄이 하나씩이면 조합의 일부는 못 연다."""
+    html = card(site, "두암81")
+    assert html.count("대체 노선을 고르세요") == 4
+    for 방면 in ("각화초교.장등마을", "무등파크.장등동", "각화초교.장등동", "무등파크.장등마을"):
+        for 대체 in ("지선81", "지선87"):
+            assert f'hx-get="route/두암81/{방면}/{대체}/기본.html"' in html
+
+
+def test_표_205개가_모두_어느_카드에선가_닿는다(site: Path) -> None:
+    """만들어 놓고 아무도 못 여는 표를 내보내지 않는다."""
+    닿는_곳 = set()
+    for path in site.glob("route/*.html"):
+        for url in re.findall(r'hx-get="([^"]+)"', path.read_text(encoding="utf-8")):
+            닿는_곳.add((site / url).resolve())
+    표 = {p.resolve() for p in site.glob("route/*/*/*/*.html")}
+    못_닿는 = sorted(p.relative_to(site.resolve()).as_posix() for p in 표 - 닿는_곳)
+    assert 못_닿는 == []
+
+
+def test_같은_번호라도_종류가_다른_대체_노선은_버튼이_따로다(site: Path) -> None:
+    assert buttons(card(site, "수완03")) == ["간선03", "급행03", "간선80"]
+
+
+def test_대체_노선이_없는_번호의_카드에는_표도_버튼도_없다(site: Path) -> None:
+    html = card(site, "두암181")
+    assert "대체 노선 없음" in html
+    assert "<table" not in html
+    assert "hx-get" not in html
+    assert "대덕" in html   # 개편 전 정류장 목록은 있다
+
+
+def test_카드가_가리키는_조각_주소에_파일이_다_있다(site: Path) -> None:
+    버튼_없는_카드 = []
+    for path in site.glob("route/*.html"):
+        주소 = re.findall(r'hx-get="([^"]+)"', path.read_text(encoding="utf-8"))
+        if not 주소:
+            버튼_없는_카드.append(path.stem)
+        for url in 주소:
+            assert (site / url).exists(), f"{path.name} → {url}"
+    assert 버튼_없는_카드 == ["두암181"]   # 고를 것이 없는 번호는 이 하나뿐이다
+
+
+def test_화면_문구에_옛_용어가_없다(site: Path) -> None:
+    for path in site.rglob("*.html"):
+        글 = path.read_text(encoding="utf-8")
+        for 옛말 in ("기존", "신규", "현행"):
+            assert 옛말 not in 글, f"{path.name}에 「{옛말}」"
+
+
+def index(site: Path) -> str:
+    return (site / "index.html").read_text(encoding="utf-8")
+
+
+def list_rows(html: str) -> list[str]:
+    본문 = re.search(r'<tbody class="reform">(.*?)</tbody>', html, re.S)
+    assert 본문, "목록 표의 본문을 못 찾았습니다"
+    return re.findall(r"<tr\b.*?</tr>", 본문.group(1), re.S)
+
+
+def list_row(html: str, number: str) -> str:
+    for 줄 in list_rows(html):
+        if f'hx-get="route/{number}.html"' in 줄:
+            return 줄
+    raise AssertionError(f"목록에 {number} 줄이 없습니다")
+
+
+def test_껍데기에_제목과_탭_둘과_목록_제목이_있다(site: Path) -> None:
+    html = index(site)
+    for 문구 in ("버스개편 비교", "장소로 찾기", "노선번호로 찾기", "노선번호 개편안"):
+        assert 문구 in html
+
+
+def test_목록은_103줄이고_줄마다_카드를_겨눈다(site: Path) -> None:
+    html = index(site)
+    줄 = list_rows(html)
+    assert len(줄) == 103
+    assert 'hx-get="route/문흥18.html"' in html
+    assert all('hx-target="#result"' in r for r in 줄)
+
+
+def test_목록_줄은_눌리는_것으로_읽히고_끼운_자리를_보여_준다(site: Path) -> None:
+    """마우스가 없는 사람도 줄을 누를 수 있어야 하고, 카드가 화면 밖에서 바뀌면 안 된다."""
+    줄 = list_row(index(site), "문흥18")
+    assert 'role="button"' in 줄 and 'tabindex="0"' in 줄
+    assert "keyup[key=='Enter']" in 줄 and "keyup[key==' ']" in 줄
+    assert 'hx-swap="innerHTML show:top"' in 줄
+    assert 'aria-label="문흥18 — 간선18, 지선10"' in 줄
+    assert 'aria-label="두암181 — 대체 노선 없음"' in list_row(index(site), "두암181")
+
+
+def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
+    html = index(site)
+    문흥18줄 = list_row(html, "문흥18")
+    assert "간선18" in 문흥18줄 and "지선10" in 문흥18줄
+    순환01줄 = list_row(html, "순환01")
+    assert "간선01" in 순환01줄 and "간선11" in 순환01줄
+    assert "대체 노선 없음" in list_row(html, "두암181")
+
+
+def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
+    주소 = re.findall(r'hx-get="([^"]+)"', index(site))
+    assert len(주소) == 103
+    for url in 주소:
+        assert (site / url).exists(), url
+
+
+def test_껍데기는_htmx와_CSS_한_장을_부른다(site: Path) -> None:
+    html = index(site)
+    assert 'href="site.css"' in html
+    assert html.count('<link rel="stylesheet"') == 1
+    assert "htmx.org" in html
+    assert 'integrity="sha384-' in html   # CDN이 다른 파일을 내주면 아예 싣지 않는다
+    assert (site / "site.css").exists()
+
+
+def test_두_탭의_입력칸이_자리를_잡고_결과_영역은_비어_있다(site: Path) -> None:
+    html = index(site)
+    assert "노선번호 입력 (예: 지원152)" in html
+    assert html.count("장소나 주소 입력 (예: 전남대)") == 2   # 출발·도착
+    assert 'id="result"' in html
+    assert "route-change" not in html   # 카드는 아직 안 끼워져 있다
