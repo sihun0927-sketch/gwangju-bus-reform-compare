@@ -234,12 +234,13 @@ def test_대체_노선이_없는_번호는_표가_없다(site: Path) -> None:
     assert not (site / "route" / "두암181").exists()
 
 
-def test_기종점_정렬표는_18행이고_확인_열은_비어_있다() -> None:
+def test_기종점_정렬표는_18행이고_확인_열이_다_차_있다() -> None:
+    # 2026-09-04 확인: 18쌍 모두 겹침이 0~9곳뿐이라 방향이 표를 거의 안 바꾼다(architecture §7-3 Q4)
     with io.open(ALIGN_TABLE, encoding="utf-8-sig", newline="") as f:
         표 = list(csv.DictReader(f))
     assert len(표) == 18
     assert {r["개편전상행이맞닿는쪽"] for r in 표} <= {"상행", "하행"}
-    assert all(r["확인"] == "" for r in 표)
+    assert all(r["확인"].strip() for r in 표)
 
 
 def test_정렬표에_사람이_안_적은_쌍이_있으면_멈춘다(tmp_path: Path) -> None:
