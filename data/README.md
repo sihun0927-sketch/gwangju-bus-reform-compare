@@ -1,11 +1,13 @@
 # data
 
-## source/ — 빌드 스크립트가 읽는 입력 8개
+## source/ — 빌드 스크립트가 읽는 입력 9개
 
-CSV 일곱과 형상 JSON 하나다. 여섯은 시가 공표한 원본(2026-09-02 반입, UTF-8 BOM)이고,
-`stops.csv`는 광주 BIS API에서 받아 만든 것이며(2026-09-03, ADR-0007), `route_shapes.json`은
-OSRM이 낸 것이다(2026-09-04, ADR-0009 · 아래 절). **손으로 고치지 않는다.** 빌드 스크립트는
-읽기만 한다 — 스크립트가 만드는 둘도 `tools/build_stops.py`·`tools/build_shapes.py`가 다시 만든다.
+CSV 여덟과 형상 JSON 하나다. 여섯은 시가 공표한 원본(2026-09-02 반입, UTF-8 BOM)이고,
+`stops.csv`는 광주 BIS API에서 받아 만든 것이며(2026-09-03, ADR-0007),
+`route_headways_with_stops.csv`는 개편 전 배차간격이고(2026-09-04 반입, 아래 절),
+`route_shapes.json`은 OSRM이 낸 것이다(2026-09-04, ADR-0009 · 아래 절). **손으로 고치지 않는다.**
+빌드 스크립트는 읽기만 한다 — 스크립트가 만드는 둘도 `tools/build_stops.py`·`tools/build_shapes.py`가
+다시 만든다.
 
 | 파일 | 행 | 열 | 쓰이는 곳 |
 |---|---|---|---|
@@ -16,6 +18,7 @@ OSRM이 낸 것이다(2026-09-04, ADR-0009 · 아래 절). **손으로 고치지
 | `신설 정류소.csv` | 68 | 구분 · 정류소 | 비고 "신설 정류소", 좌표 채우기 대상(ADR-0004) |
 | `통폐합이전정류소.csv` | 16 | 지역 · 구분 · 정류소명 · ID · 통폐합사유 | 비고 "폐지/통폐합/이전 · 사유" |
 | `stops.csv` | 4,746 | STATION_NUM · BUSSTOP_NAME · ARS_ID · NEXT_BUSSTOP · BUSSTOP_ID · LONGITUDE · NAME_E · LATITUDE | 노선 지도 좌표, 번들 stops 표. **시 공표 아님** — 광주 BIS API(ADR-0007) |
+| `route_headways_with_stops.csv` | 110 | route_name · headway_minutes · 상행 정류장(순서대로) · 하행 정류장(순서대로) | 번들 routes의 `headway`, 장소 탭 경로 줄의 「배차간격 N분」. **개편 전만** (아래 절) |
 
 ## 알아 둘 함정
 
