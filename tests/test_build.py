@@ -177,40 +177,13 @@ def test_비고에_상태_문구는_적지_않는다(site: Path) -> None:
         assert not any(말 in 비고 for 말 in ("유지", "경유 제외", "경유 추가")), path
 
 
-def test_통폐합은_흡수된_쪽이_개편_전_열에_나오는_줄에_붙는다(site: Path) -> None:
-    """통폐합 CSV의 「A(B)」는 B가 A에 흡수된 것 — 「오치한전(오치한전(북))」은 오치한전(북)이 오치한전에
-    (architecture §7-3 Q3). 비고는 B가 개편 전 열에 있는 줄에, 사유는 title에."""
+def test_CSV_이름이_노선안과_안_맞으면_비고를_못_붙이고_빌드는_성공한다(site: Path) -> None:
+    """통폐합 CSV는 흡수된 정류장을 「오치한전(오치한전(북))」으로 적어 노선안 이름과 안 맞는다.
+    짐작으로 붙이지 않고 비운다 (티켓 1 Further Notes). 넷 다 이 꼴이라 「통폐합」 비고는 0건이다."""
     html = fragment(site, 운림54)
     줄 = next(r for r in rows(html) if ">오치한전(북)<" in r)
     assert '<td class="dropped">오치한전(북)</td>' in 줄
-    assert ">통폐합: 오치한전에 흡수</td>" in 줄
-    assert 'title="정류소간 거리가 짧아(약 120m) 통합운영합니다."' in 줄
-
-
-def test_통폐합_CSV와_노선안이_어긋나도_노선안을_고쳐_읽지_않는다(site: Path) -> None:
-    """서방사거리육교는 통폐합 CSV가 계림사거리에 흡수·폐지됐다고 적었지만 개편 후 노선안(간선19·간선39·419)에
-    그대로 있다. 그 줄은 「유지」인 채로 비고만 붙는다 — 두 공표 자료가 어긋난다는 것을 그대로 보인다."""
-    html = fragment(site, ("매월06", "기본", "간선06", "기본.html"))
-    줄 = next(r for r in rows(html) if ">서방사거리육교<" in r)
-    assert '<td class="dropped">서방사거리육교</td>' in 줄
-    assert ">통폐합: 계림사거리에 흡수</td>" in 줄
-    유지줄 = [
-        r
-        for path in site.rglob("*.html")
-        for r in rows(path.read_text(encoding="utf-8"))
-        if 'class="kept">서방사거리육교' in r
-    ]
-    assert 유지줄, "개편 후 노선안에 남은 서방사거리육교가 「유지」 줄로 나와야 한다"
-    assert all(">통폐합: 계림사거리에 흡수</td>" in r for r in 유지줄)
-
-
-def test_통폐합_행이_A_B_꼴이_아니면_멈춘다() -> None:
-    from tools.build.notes import split_absorbed
-
-    assert split_absorbed("오치한전(오치한전(북))") == ("오치한전", "오치한전(북)")
-    assert split_absorbed("계수초교(상무한국아파트)") == ("계수초교", "상무한국아파트")
-    with pytest.raises(BuildError):
-        split_absorbed("계수초교")
+    assert "통폐합" not in 줄
 
 
 def test_한_줄에_사실이_둘이면_이어_적는다(site: Path) -> None:
