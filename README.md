@@ -10,7 +10,7 @@
 
 1. `CONTEXT.md` — 용어. 방면·대체 노선·조각·유지/경유 제외/경유 추가 같은 말의 뜻
 2. `docs/architecture.md` — 구조와 부품 역할, 두 탭의 정적/동적 분할, 데이터 흐름, 결정 요약
-3. `docs/adr/` — 되돌리기 어려운 결정 다섯과 그 이유
+3. `docs/adr/` — 되돌리기 어려운 결정 여섯과 그 이유
 4. `data/README.md` — 원천 CSV 6개의 열과 행 수, 알아 둘 함정
 5. **모듈 지도** — https://claude.ai/code/artifact/6977a9d4-929e-40d8-a252-9620cb46f86b
    탭마다 두 장: 모듈 지도(화면 조각 → 화면 모듈 → 조각 → 만드는 곳(빌드 스크립트 / Worker) → 데이터, 정적/동적·용어·데이터 있음/예정)와
@@ -48,6 +48,6 @@
 
 ![조각 출처 a vs b](docs/images/mock-4-fragment-source.png)
 
-## 상태 (2026-09-02)
+## 상태 (2026-09-03)
 
-설계 결정만 있고 코드는 없다. 다음 단계는 `docs/architecture.md` §9 「다음 할 일」.
+설계 결정만 있고 코드는 없다. 번호 잇기 규칙은 ADR-0006으로 닫혔고 `tools/measure_direction.py`가 못 찾는 쌍 0으로 재현한다. 다음 단계는 `docs/architecture.md` §9 「다음 할 일」.
