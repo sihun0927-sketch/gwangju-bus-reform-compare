@@ -65,6 +65,16 @@ function 노선망(key, label) {
     stop: (id) => byId.get(id),
     /** 노선 하나의 화면 이름. */
     routeName: (route) => bundle.routes[route].name,
+    /** 화면 이름 → 이 노선망의 노선. 없는 이름이면 `null`(경로 키를 풀 때 쓴다). */
+    route: (name) => (bundle.routes[`${key}:${name}`] ? `${key}:${name}` : null),
+    /**
+     * 한 구간이 지나는 자리들 — 순번 `from`부터 `to`까지, 자리마다 그 자리에 선 줄 목록.
+     *
+     * 경로 지도가 승차와 하차 **사이**의 정류장을 그리려면 이것이 있어야 한다. 자리 하나에
+     * 줄이 여럿인 것은 길 양쪽이 따로이기 때문이고, 어느 쪽을 그릴지는 `geometry`가 고른다.
+     */
+    along: (route, side, from, to) =>
+      (bundle.route_stops[route]?.[side] ?? []).slice(from, to + 1),
     /** 배차간격. 개편 전 자료가 아직 없어 늘 `null`이다(스펙 Out of Scope). */
     headway: (route) => bundle.routes[route].headway,
   };

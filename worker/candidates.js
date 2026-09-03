@@ -17,6 +17,17 @@ const EARTH_RADIUS_M = 6371000;
 
 const 라디안 = (도) => (도 * Math.PI) / 180;
 
+/**
+ * `"35.17,126.90"` → `{lat, lng}`. 숫자 둘이 아니면 `null`.
+ *
+ * 두 곳이 이 글자를 읽는다 — `compare`는 요청 매개변수에서, `journey`는 경로 키에서. 따로 두었더니
+ * 한쪽만 `?? ""`를 달아 빈 값에서 갈렸다. 지점을 아는 곳이 여기 하나이므로 여기 둔다.
+ */
+export function point(글) {
+  const [lat, lng] = String(글 ?? "").split(",").map(Number);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
 /** 두 지점 사이 직선 거리(m). 도로를 따르지 않는다 — 도보 거리는 모두 이 값이다. */
 export function metresBetween(a, b) {
   const φ1 = 라디안(a.lat);

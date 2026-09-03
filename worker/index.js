@@ -7,17 +7,18 @@
  *
  * 데이터는 빌드가 만든 번들 JSON 하나뿐이다 — D1은 없다. 요청 때 하는 일은 조회·순위·렌더뿐이다.
  *
- * `/compare`는 `compare` 모듈이 채웠고, `/places`는 Kakao 자동완성 조각을 돌려준다.
- * `/journey`는 아직 「준비 중」 조각이다.
+ * 세 경로 모두 조각을 돌려준다 — `/places`는 Kakao 자동완성 후보, `/compare`는 카드 한 쌍,
+ * `/journey/{id}`는 다른 경로 카드 하나다.
  * 번들을 여기서도 import해 두는 까닭은, 배포에 실린 번들의 크기를 응답 머리로 보이기 위해서다.
  */
 import bundle from "./data.json" with { type: "json" };
 import { places } from "./places.js";
 
 import { compare } from "./compare.js";
+import { journey } from "./journey.js";
 
-/** 아직 준비 중인 경로가 돌려주는 조각. htmx가 결과 영역에 그대로 끼운다. */
-const NOT_READY = '<p class="notice">장소로 찾기는 준비 중입니다.</p>';
+/** `/journey/` 뒤에 오는 경로 키가 시작하는 자리. */
+const JOURNEY_PREFIX = "/journey/";
 
 /** 번들이 실제로 배포에 실렸는지 한 줄로 보이게 한다 — 코드와 데이터가 따로 낡는 것을 잡는 표식. */
 const BUNDLE_HEALTH =
@@ -40,8 +41,11 @@ export default {
     const { pathname, searchParams } = new URL(request.url);
     if (pathname === "/places") return htmlResponse(await places(request, env, bundle));
     if (pathname === "/compare") return htmlResponse(compare(searchParams));
-    if (pathname.startsWith("/journey/")) {
-      return htmlResponse(NOT_READY);
+    if (pathname.startsWith(JOURNEY_PREFIX)) {
+      // 키가 번들과 안 맞으면 `journey`가 404와 한 줄 문구를 준다. htmx는 200이 아닌 응답을
+      // 끼우지 않으므로 그 문구는 **주소를 그대로 연 사람**이 본다 — 키는 남에게 보낼 수 있는 링크다
+      const { html, status } = journey(pathname.slice(JOURNEY_PREFIX.length));
+      return htmlResponse(html, status);
     }
     return env.ASSETS.fetch(request);
   },

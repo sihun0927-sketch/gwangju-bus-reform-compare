@@ -45,8 +45,21 @@ export const outOfReach = (network) =>
     network,
   );
 
-/** 카드 한 쌍(또는 그 자리를 대신한 안내)을 조각 하나로 묶는다. */
-export const cardPair = (조각들) => `<div class="compare">${조각들.join("")}</div>`;
+/**
+ * 카드 한 쌍(또는 그 자리를 대신한 안내)을 조각 하나로 묶는다.
+ *
+ * 경로 지도는 카드 **위**에 하나만 놓는다 — 두 노선망의 경로를 겹쳐 봐야 개편으로 길이 어떻게
+ * 달라졌는지가 보이기 때문이다(CONTEXT 「경로 지도」). 좌표는 카드마다 실려 있고, 어느 것을
+ * 올릴지 고르는 일과 그리는 일은 브라우저 `map`이 한다. 그릴 것이 없으면 `map`이 감춘다.
+ */
+export const cardPair = (조각들) =>
+  '<div class="journey-map" hidden>'
+  + '<div class="canvas" id="journey-map-canvas"></div>'
+  + `<p class="legend">${지도_범례}</p></div>`
+  + `<div class="compare">${조각들.join("")}</div>`;
+
+/** 지도의 선 둘이 무엇인지 한 줄로 (CONTEXT 「경로 지도」). */
+const 지도_범례 = "개편 전 경로는 점선, 개편 후 경로는 실선입니다. 회색 점선은 걷는 구간입니다.";
 
 /** 줄 목록을 `<ul>`이나 `<ol>` 하나로. 경로 줄과 지표 줄이 같은 모양이라 한 곳에 둔다. */
 const 목록 = (태그, 갈래, 줄들) =>
@@ -70,16 +83,83 @@ const 상태 = (journey) => {
 /**
  * 노선망 하나의 카드. `journey`가 없으면 머리가 「경로 없음」이고 안이 한 줄이다.
  *
- * 「다른 경로 더 보기」 자리는 아직 비워 둔다(티켓 5).
+ * `key`는 이 경로의 경로 키, `geometry`는 경로 지도 좌표, `alternatives`는 다른 경로들의 키다.
+ * 경로가 없으면 셋 다 없다.
  */
-export function card(network, journey) {
-  const 머리 =
-    `<h3><span class="network">${network.label}</span>` +
-    ` <span class="status">${상태(journey)}</span></h3>`;
+export function card(network, journey, { key, geometry, alternatives = [] } = {}) {
   const 안쪽 = journey
     ? 경로(network, journey) + 지표(network, journey) + 추정치
+      + 지도_버튼(network) + 좌표(geometry) + 더_보기(network, alternatives)
     : `<p class="notice">이 노선망에서는 환승 ${MAX_TRANSFERS}회 안에 가는 길을 찾지 못했습니다.</p>`;
-  return `<article class="journey-card" data-network="${network.key}">${머리}${안쪽}</article>`;
+  return 카드("journey-card", network, journey, key, 안쪽);
+}
+
+/**
+ * 다른 경로 카드 하나 — `/journey/{id}`가 돌려주는 조각 (CONTEXT 「다른 경로 카드」).
+ *
+ * 기본 카드와 같은 줄들을 적는다. 다른 것은 둘 — 「다른 경로 더 보기」가 없고(펼친 것이 또 펼치지
+ * 않는다), 스스로 자리를 차지하지 않고 기본 카드 안의 자리에 끼워진다.
+ */
+export const alternative = (network, journey, { key, geometry } = {}) =>
+  카드(
+    "journey-card alternative", network, journey, key,
+    경로(network, journey) + 지표(network, journey)
+      + 지도_버튼(network) + 좌표(geometry),
+  );
+
+/** 키가 번들과 안 맞을 때. `/journey/{id}`가 404와 함께 돌려준다. */
+export const brokenJourney = () => 안내("이 경로 주소는 더 볼 수 없습니다.");
+
+/** 카드 하나의 껍데기. 경로 키를 카드에 적어 두면 `map`이 어느 경로인지 알아본다. */
+const 카드 = (갈래, network, journey, key, 안쪽) =>
+  `<article class="${갈래}" data-network="${network.key}"`
+  + `${key ? ` data-journey="${key}"` : ""}>`
+  + `<h3><span class="network">${network.label}</span>`
+  + ` <span class="status">${상태(journey)}</span></h3>${안쪽}</article>`;
+
+/**
+ * 「지도에 표시」 — 카드당 경로 하나만 지도에 올린다(CONTEXT 「경로 지도」).
+ *
+ * 누르는 것을 `map`이 받는다. 조각을 새로 받아 오는 일이 아니라 이미 실린 좌표를 고르는 일이라
+ * htmx가 아니라 브라우저 스크립트다.
+ */
+const 지도_버튼 = (network) =>
+  `<button type="button" class="show-on-map" data-network="${network.key}">지도에 표시</button>`;
+
+/**
+ * 경로 지도 좌표. 그리는 것은 브라우저 `map`이다(ADR-0001).
+ *
+ * `<`를 `\u003c`로 바꾼다 — 정류장 이름은 CSV에서 온 남의 글자라, 언젠가 `</script`가 든 이름이
+ * 들어오면 조각이 거기서 끊긴다. JSON은 그 자리에 유니코드 이스케이프를 그대로 받는다.
+ */
+const 좌표 = (geometry) =>
+  geometry
+    ? '<script type="application/json" class="geometry">'
+      + JSON.stringify(geometry).replace(/</g, "\\u003c")
+      + "</script>"
+    : "";
+
+/**
+ * 「다른 경로 더 보기」와 그 자리 — 누르면 다른 경로 카드가 최대 둘 끼워진다.
+ *
+ * 조각 하나에 경로 하나이므로 자리도 둘이다. 단추 하나가 둘을 함께 부르도록 htmx의
+ * `from:`을 쓴다 — 우리 스크립트를 하나도 더하지 않는다(ADR-0001). `once`라 두 번 부르지 않고,
+ * 다 채워지면 단추는 CSS가 감춘다.
+ */
+function 더_보기(network, keys) {
+  if (!keys.length) return "";
+  const 단추 = `more-${network.key}`;
+  const 자리 = keys
+    .map(
+      (key) =>
+        `<div data-journey="${key}" hx-get="/journey/${key}"`
+        + ` hx-trigger="click once from:#${단추}" hx-swap="outerHTML"></div>`,
+    )
+    .join("");
+  return (
+    `<button type="button" class="more" id="${단추}">다른 경로 더 보기</button>`
+    + `<div class="alternatives">${자리}</div>`
+  );
 }
 
 /**

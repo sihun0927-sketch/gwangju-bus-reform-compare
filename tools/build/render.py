@@ -155,9 +155,12 @@ def route_reform_list(rows: list[Row]) -> str:
     ])
 
 
-def index_page(rows: list[Row]) -> str:
-    """껍데기 + 노선 개편 목록 표 = `out/index.html` 한 장."""
-    return shell_page(route_reform_list(rows), rows)
+def index_page(rows: list[Row], kakao_js_key: str = "") -> str:
+    """껍데기 + 노선 개편 목록 표 = `out/index.html` 한 장.
+
+    `kakao_js_key`는 껍데기가 지도 SDK에 박는 값이다 — 리포에 없고 빌드가 환경 변수로 받는다.
+    """
+    return shell_page(route_reform_list(rows), rows, kakao_js_key)
 
 
 def _ends(origin: str, terminus: str) -> str:
