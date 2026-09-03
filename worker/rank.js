@@ -11,6 +11,24 @@
 import { estimateSeconds } from "./rules.js";
 
 /**
+ * 경로 하나에 지표 넷을 붙인다 — `walks` · `walk` · `stopsPassed` · `seconds`.
+ *
+ * `journey`가 경로 키에서 되살린 경로에도 같은 값을 붙여야 해서 따로 내놓는다. 두 곳에서 각자
+ * 세면 카드마다 다른 자로 잰 예상 시간이 나온다.
+ */
+export function measure(journey) {
+  const 구간 = journey.legs;
+  const walks = [
+    구간[0].board.walk,
+    ...journey.transferWalks,
+    구간[구간.length - 1].alight.walk,
+  ];
+  const walk = walks.reduce((합, m) => 합 + m, 0);
+  const stopsPassed = 구간.reduce((n, leg) => n + leg.stopsPassed, 0);
+  return { ...journey, walks, walk, stopsPassed, seconds: estimateSeconds(stopsPassed, walk) };
+}
+
+/**
  * 경로 목록에 지표를 붙여 좋은 순으로 돌려준다.
  *
  * 붙는 것은 넷 — `walks`(걷는 구간의 거리 목록: 출발 도보 · 환승 도보들 · 도착 도보) ·
@@ -20,17 +38,7 @@ import { estimateSeconds } from "./rules.js";
  * 값을 더한 것과 카드의 합계가 1m 어긋나 보이지 않게. 시간은 반올림 전 값으로 재야 하므로 둘이 다르다.
  */
 export function rank(journeys) {
-  const 잰 = journeys.map((journey) => {
-    const 구간 = journey.legs;
-    const walks = [
-      구간[0].board.walk,
-      ...journey.transferWalks,
-      구간[구간.length - 1].alight.walk,
-    ];
-    const walk = walks.reduce((합, m) => 합 + m, 0);
-    const stopsPassed = 구간.reduce((n, leg) => n + leg.stopsPassed, 0);
-    return { ...journey, walks, walk, stopsPassed, seconds: estimateSeconds(stopsPassed, walk) };
-  });
+  const 잰 = journeys.map(measure);
   잰.sort(
     (a, b) => a.seconds - b.seconds || a.transfers - b.transfers || a.walk - b.walk,
   );

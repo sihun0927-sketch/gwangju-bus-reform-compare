@@ -11,7 +11,11 @@
  *
  * 돌려주는 경로 하나의 모습:
  *
- *     { legs: [{ route, side, board, alight, stopsPassed }], transferWalks: [m], transfers }
+ *     { legs: [{ route, side, board, alight, boardOrder, alightOrder, stopsPassed }],
+ *       transferWalks: [m], transfers }
+ *
+ * 순번 둘을 실어 보내는 까닭은 경로 지도 때문이다 — 승차·하차 사이에 지나는 정류장을 다시
+ * 훑으려면 「몇 번째에서 몇 번째까지」가 있어야 하고, 그 값은 여기 말고는 아는 곳이 없다.
  *
  * `legs[0].board`와 마지막 `alight`만 도보권 후보라 `walk`(지점까지 도보 m)를 달고 있다. 가운데
  * 정류장은 번들에서 꺼낸 줄이고, 그 사이를 걷는 거리는 `transferWalks`에 구간 사이마다 하나씩 있다.
@@ -149,6 +153,8 @@ function 펴다(손, alight, alightOrder) {
       side: 한칸.side,
       board: 한칸.board,
       alight,
+      boardOrder: 한칸.order,
+      alightOrder,
       stopsPassed: alightOrder - 한칸.order,
     });
     // 도보는 쌓인 값이라 앞 칸과의 차이가 그 자리에서 걸은 거리다

@@ -11,6 +11,10 @@
   --ink-muted: #5a6b67;
   --accent: #0e6b5c;
   --accent-soft: #398579;
+  /* 지도의 선 색. `map`이 여기서 읽어 간다 — 팔레트가 CSS와 스크립트 두 곳에 살지 않게 */
+  --map-before: #0e6b5c;  /* 개편 전 경로 — 점선 */
+  --map-after: #2563eb;   /* 개편 후 경로 — 실선 */
+  --map-walk: #8a9997;    /* 걷는 구간 — 회색 점선 */
   --worse-bg: #f9ece9;   /* 개편 전에만 지나는 줄 — 경유 제외 */
   --worse-ink: #b2402f;
   --better-bg: #e3f0ed;  /* 개편 후에만 지나는 줄 — 경유 추가 */
@@ -200,6 +204,72 @@ ul.summary li.added .count { color: var(--better-ink); }
 .stop-diff td.added { background: var(--better-bg); }
 
 .flipped, .source { margin: 10px 0 0; }
+
+/* 장소 탭 — 카드 한 쌍과 그 위의 경로 지도 (CONTEXT 「경로 지도」·「다른 경로 카드」) */
+.journey-map { margin: 0 0 var(--gap); }
+.journey-map .canvas {
+  height: 320px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--field-bg);
+}
+.journey-map .legend { margin: 6px 0 0; color: var(--ink-muted); font-size: 13px; }
+/* 정류장 점. 선 색을 그대로 받아 어느 노선망의 경로인지 알아본다.
+   자리 잡기는 Kakao가 한다 — `CustomOverlay`가 내용을 좌표에 가운데로 놓으므로 여백을 주지 않는다 */
+.map-dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+}
+
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); align-items: start; }
+.journey-card {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.journey-card h3 { margin: 0 0 10px; font-size: 17px; }
+.journey-card .network { color: var(--ink-muted); font-weight: 400; font-size: 14px; }
+.journey-card .status { color: var(--accent); }
+.journey-card ol.legs { margin: 0 0 10px; padding-left: 20px; font-size: 14px; }
+.journey-card .transfer { color: var(--accent-soft); }
+.journey-card .estimated { color: var(--ink-muted); font-size: 12px; }
+ul.metrics { display: flex; flex-wrap: wrap; gap: 6px 10px; list-style: none; margin: 0; padding: 0; }
+ul.metrics li {
+  background: var(--field-bg);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 13px;
+}
+.estimate-note { margin: 10px 0 0; color: var(--ink-muted); font-size: 12px; }
+.notice { margin: 0; color: var(--ink-muted); }
+
+.journey-card button { margin-top: 10px; margin-right: 6px; }
+.show-on-map, .more {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.show-on-map:hover, .more:hover { background: var(--better-bg); border-color: var(--accent-soft); }
+.show-on-map.on { background: var(--accent); border-color: var(--accent); color: #fff; cursor: default; }
+/* 다른 경로가 다 들어오면 더 볼 것이 없다 — 단추를 감춘다(htmx `once`라 다시 부르지도 않는다) */
+.more:has(+ .alternatives article) { display: none; }
+.alternatives:has(article) { margin-top: 10px; display: grid; gap: 10px; }
+.journey-card.alternative { background: var(--panel-bg); }
+
+@media (max-width: 640px) {
+  .compare { grid-template-columns: 1fr; }
+  .journey-map .canvas { height: 240px; }
+}
 
 @media (max-width: 640px) {
   .page { padding: 20px 12px 48px; }

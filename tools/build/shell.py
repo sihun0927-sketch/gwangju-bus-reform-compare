@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 from .route_list import Row
 
@@ -40,7 +41,17 @@ CSS = "site.css"
 CSS_SOURCE = Path(__file__).resolve().parent / CSS
 PLACE_JS = "place.js"
 PLACE_JS_SOURCE = Path(__file__).resolve().parent / PLACE_JS
-# CDN 스크립트 태그 둘(htmx + 공식 확장 하나)과 우리 스크립트 하나 — 장소 탭의 place.js뿐이다.
+MAP_JS = "map.js"
+MAP_JS_SOURCE = Path(__file__).resolve().parent / MAP_JS
+# 브라우저 조각 스크립트 둘. 순서는 상관없다 — 둘 다 자기 자리만 본다
+BROWSER_SCRIPTS = (PLACE_JS, MAP_JS)
+
+# Kakao 지도 SDK. JS 키는 리포에 없고 빌드 때 환경 변수에서 받아 여기에 박는다(ADR-0005).
+# 키가 없으면 태그를 아예 안 단다 — 그때는 `map`이 지도 자리를 감춘다. 로컬 빌드가 그 자리다.
+KAKAO_SDK = "https://dapi.kakao.com/v2/maps/sdk.js"
+KAKAO_JS_KEY_ENV = "KAKAO_JS_KEY"
+# CDN 스크립트 태그 둘(htmx + 공식 확장 하나)과 우리 스크립트 둘(place.js · map.js),
+# 그리고 JS 키가 있을 때만 붙는 Kakao 지도 SDK.
 # 우리가 쓰는 htmx 속성은 hx-get · hx-target · hx-swap · hx-trigger · hx-ext 다섯뿐이다(ADR-0001)
 HTMX = "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
 # CDN이 다른 파일을 내주면 브라우저가 아예 싣지 않는다. 위 주소를 받아 sha384로 잰 값이다
@@ -137,10 +148,23 @@ def _route_panel(route_list: str, rows: list[Row]) -> list[str]:
     ]
 
 
-def page(route_list: str, rows: list[Row]) -> str:
+def _map_scripts(kakao_js_key: str) -> list[str]:
+    """지도를 그리는 SDK 태그. 키가 없으면 아무것도 안 단다(ADR-0005).
+
+    `autoload=false`로 받고 `map`이 `kakao.maps.load()`로 기다린다 — 스크립트를 `defer`로 싣기
+    때문에 자동으로 켜지는 쪽은 언제 준비되는지가 정해지지 않는다.
+    """
+    if not kakao_js_key:
+        return []
+    src = f"{KAKAO_SDK}?appkey={quote(kakao_js_key, safe='')}&autoload=false"
+    return [f'<script src="{src}" defer></script>']
+
+
+def page(route_list: str, rows: list[Row], kakao_js_key: str = "") -> str:
     """껍데기 한 장. `route_list`는 노선 개편 목록 표 HTML이고 노선번호 탭 안에 통째로 들어간다.
 
     `rows`는 그 표의 줄들이다 — 후보를 같은 자리에서 만들어야 목록과 후보가 같은 번호를 적는다.
+    `kakao_js_key`는 지도 SDK에 박는 값이고, 빈 값이면 지도를 안 싣는다(ADR-0005).
     """
     return "\n".join([
         "<!doctype html>",
@@ -153,7 +177,8 @@ def page(route_list: str, rows: list[Row]) -> str:
         f'<script src="{HTMX}" integrity="{HTMX_SRI}" crossorigin="anonymous" defer></script>',
         f'<script src="{PATH_PARAMS}" integrity="{PATH_PARAMS_SRI}"'
         ' crossorigin="anonymous" defer></script>',
-        f'<script src="{PLACE_JS}" defer></script>',
+        *_map_scripts(kakao_js_key),
+        *[f'<script src="{js}" defer></script>' for js in BROWSER_SCRIPTS],
         "</head>",
         "<body>",
         '<main class="page">',

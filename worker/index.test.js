@@ -33,8 +33,11 @@ test("/compare는 HTML 조각을 돌려준다", async () => {
   assert.match(await 응답.text(), /개편 전[\s\S]*개편 후/);
 });
 
-test("/journey는 준비 중 조각을 돌려준다", async () => {
-  assert.match(await (await 부른다("/journey/abc")).text(), /준비 중/);
+test("/journey는 조각을 돌려주고 깨진 키에는 404다", async () => {
+  // 무엇이 실리는지는 `journey.test.js`가 본다. 여기서는 주소가 코드로 온다는 것만
+  const 응답 = await 부른다("/journey/abc");
+  assert.equal(응답.status, 404);
+  assert.match(응답.headers.get("content-type"), /text\/html/);
 });
 
 test("/places는 한 글자에는 빈 조각을, 두 글자에는 Kakao 후보 다섯 개를 돌려준다", async (t) => {

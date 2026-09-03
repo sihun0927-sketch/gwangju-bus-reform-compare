@@ -60,11 +60,21 @@ def _clear(out: Path, source: Path) -> None:
     out.mkdir(parents=True)
 
 
-def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = None) -> Result:
+def build(
+    source: Path,
+    out: Path,
+    bundle: Path,
+    *,
+    align_table: Path | None = None,
+    kakao_js_key: str = "",
+) -> Result:
     """`source`의 CSV를 읽어 `out/`에 정적 조각을, `bundle`에 번들 JSON을 쓴다.
 
     번들 자리에 기본값을 두지 않는다 — 기본값(`worker/data.json`)은 명령줄의 것이고, 여기에
     두면 자리를 안 준 호출이 작업 트리의 배포 산출물을 조용히 덮어쓴다.
+
+    `kakao_js_key`는 껍데기의 지도 SDK 태그에 박는다. 리포에 없는 값이라 기본은 빈 값이고,
+    그때는 태그를 안 달아 지도가 안 뜬다(ADR-0005) — 나머지 화면은 그대로 돈다.
 
     번호를 못 잇거나, 기·종점 정렬표에 사람이 안 적은 쌍이 있거나, 노선안 정류장 이름을
     `stops.csv`의 줄에 못 이으면 목록을 담은 `BuildError`를 낸다.
@@ -103,7 +113,7 @@ def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = N
     # 카드는 `out/`을 지우기 전에 다 만들어 본다 — 입력이 틀리면 반쯤 쓰다 만 자리를 남기지 않는다
     cards = [route_card.card(row, before_siblings.get(row.before, []), after) for row in replacements]
 
-    for asset in (shell.CSS_SOURCE, shell.PLACE_JS_SOURCE):
+    for asset in (shell.CSS_SOURCE, shell.PLACE_JS_SOURCE, shell.MAP_JS_SOURCE):
         if not asset.exists():
             raise BuildError(f"화면 자산이 없습니다: {asset}")
 
@@ -122,9 +132,10 @@ def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = N
         html = render.route_change_card(card, tables[card.default] if card.default else "")
         _write(out / render.card_url(card.before.number), html)
 
-    _write(out / "index.html", render.index_page(route_list.rows(cards)))
+    _write(out / "index.html", render.index_page(route_list.rows(cards), kakao_js_key))
     shutil.copyfile(shell.CSS_SOURCE, out / shell.CSS)
     shutil.copyfile(shell.PLACE_JS_SOURCE, out / shell.PLACE_JS)
+    shutil.copyfile(shell.MAP_JS_SOURCE, out / shell.MAP_JS)
 
     written = bundle_json.write(bundle_path, made)
 
