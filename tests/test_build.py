@@ -479,7 +479,7 @@ def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
 
 
 def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
-    주소 = re.findall(r'hx-get="([^"]+)"', index(site))
+    주소 = re.findall(r'hx-get="(route/[^"]+)"', index(site))
     assert len(주소) == 103
     for url in 주소:
         assert (site / url).exists(), url
@@ -500,3 +500,17 @@ def test_두_탭의_입력칸이_자리를_잡고_결과_영역은_비어_있다
     assert html.count("장소나 주소 입력 (예: 전남대)") == 2   # 출발·도착
     assert 'id="result"' in html
     assert "route-change" not in html   # 카드는 아직 안 끼워져 있다
+
+
+def test_장소_입력칸_둘은_자동완성을_부르고_후보를_고르면_비교를_요청한다(site: Path) -> None:
+    html = index(site)
+    assert html.count('hx-get="/places"') == 2
+    assert html.count('hx-trigger="keyup changed delay:250ms"') == 2
+    assert 'disabled' not in html
+    assert "장소로 찾기는 아직 준비 중입니다" not in html
+    assert 'id="from-candidates"' in html
+    assert 'id="to-candidates"' in html
+    assert 'id="place-result"' in html
+    assert (site / "place.js").exists()
+    script = (site / "place.js").read_text(encoding="utf-8")
+    assert "/compare?from=" in script

@@ -11,6 +11,7 @@
  * 뼈대인데도 번들을 import해 두는 까닭은, 안 쓰면 번들러가 지워서 배포 크기를 못 재기 때문이다.
  */
 import bundle from "./data.json" with { type: "json" };
+import { places } from "./places.js";
 
 /** 준비 중인 세 경로가 돌려주는 조각. htmx가 결과 영역에 그대로 끼운다. */
 const NOT_READY = '<p class="notice">장소로 찾기는 준비 중입니다.</p>';
@@ -33,8 +34,8 @@ function fragment(html, status = 200) {
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
+    if (pathname === "/places") return fragment(await places(request, env, bundle));
     if (
-      pathname === "/places" ||
       pathname === "/compare" ||
       pathname.startsWith("/journey/")
     ) {
