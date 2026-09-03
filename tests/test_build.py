@@ -35,9 +35,9 @@ ALIGN_TABLE = DATA / "기종점정렬표.csv"
 @pytest.fixture(scope="session")
 def site(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """진짜 CSV로 한 번만 빌드하고 모든 검사가 그 결과를 나눠 쓴다."""
-    out = tmp_path_factory.mktemp("out")
-    build(SOURCE, out)
-    return out
+    자리 = tmp_path_factory.mktemp("out")
+    build(SOURCE, 자리 / "out", 자리 / "data.json")
+    return 자리 / "out"
 
 
 def fragment(site: Path, parts: tuple[str, ...]) -> str:
@@ -93,7 +93,7 @@ def test_out을_비우고_다시_쓴다(tmp_path: Path) -> None:
     out.mkdir()
     stale = out / "지난번.html"
     stale.write_text("옛 조각", encoding="utf-8")
-    build(SOURCE, out)
+    build(SOURCE, out, tmp_path / "data.json")
     assert not stale.exists()
 
 
@@ -234,12 +234,13 @@ def test_대체_노선이_없는_번호는_표가_없다(site: Path) -> None:
     assert not (site / "route" / "두암181").exists()
 
 
-def test_기종점_정렬표는_18행이고_확인_열은_비어_있다() -> None:
+def test_기종점_정렬표는_18행이고_확인_열이_다_차_있다() -> None:
+    # 2026-09-04 확인: 18쌍 모두 겹침이 0~9곳뿐이라 방향이 표를 거의 안 바꾼다(architecture §7-3 Q4)
     with io.open(ALIGN_TABLE, encoding="utf-8-sig", newline="") as f:
         표 = list(csv.DictReader(f))
     assert len(표) == 18
     assert {r["개편전상행이맞닿는쪽"] for r in 표} <= {"상행", "하행"}
-    assert all(r["확인"] == "" for r in 표)
+    assert all(r["확인"].strip() for r in 표)
 
 
 def test_정렬표에_사람이_안_적은_쌍이_있으면_멈춘다(tmp_path: Path) -> None:
@@ -304,7 +305,7 @@ def test_입력이_든_자리는_출력으로_받아도_지우지_않는다(tmp_
     data = tmp_path / "data"
     shutil.copytree(DATA, data)
     with pytest.raises(BuildError):
-        build(data / "source", data)
+        build(data / "source", data, tmp_path / "data.json")
     assert (data / "source" / "노선개편 전후 비교표.csv").exists()
 
 
@@ -469,6 +470,37 @@ def test_목록_줄은_눌리는_것으로_읽히고_끼운_자리를_보여_준
     assert 'aria-label="두암181 — 대체 노선 없음"' in list_row(index(site), "두암181")
 
 
+def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조각을_부른다(site: Path) -> None:
+    """자동완성 후보는 <datalist> 103개 — 값은 번호, 설명은 대체 노선(§7-3 Q1·Q2)."""
+    html = index(site)
+    입력칸 = re.search(r'<input id="number"[^>]*>', html)
+    assert 입력칸, "노선번호 입력칸을 못 찾았습니다"
+    칸 = 입력칸.group(0)
+    assert "disabled" not in 칸
+    assert 'list="route-numbers"' in 칸 and 'name="number"' in 칸
+    assert 'hx-ext="path-params"' in 칸 and 'hx-get="route/{number}.html"' in 칸
+    assert 'hx-target="#result"' in 칸 and 'hx-trigger="change"' in 칸
+    후보 = re.findall(r'<option value="([^"]*)" label="([^"]*)">', html)
+    assert len(후보) == 103
+    assert ("문흥18", "간선18 · 지선10") in 후보
+    assert ("지원152", "급행1003 · 228") in 후보
+    assert ("두암181", "대체 노선 없음") in 후보
+    # 후보 순서는 목록 표 순서 그대로다 — 같은 번호를 두 곳이 다르게 적는 일이 없다
+    번호 = [re.search(r"route/(.*?)\.html", 줄).group(1) for 줄 in list_rows(html)]
+    assert [값 for 값, _ in 후보] == 번호
+
+
+def test_껍데기의_스크립트는_htmx와_path_params_확장과_place_js_셋뿐이다(site: Path) -> None:
+    """확장은 htmx 뒤에 와야 켜진다. 우리가 쓴 스크립트는 장소 탭의 place.js 하나뿐이다(§7-3 Q1)."""
+    태그 = re.findall(r"<script\b[^>]*>", index(site))
+    assert len(태그) == 3
+    htmx태그, 확장태그, 우리태그 = 태그
+    assert "htmx.org" in htmx태그
+    assert "htmx-ext-path-params" in 확장태그
+    assert 'integrity="sha384-' in 확장태그   # CDN이 다른 파일을 내주면 아예 싣지 않는다
+    assert 'src="place.js"' in 우리태그
+
+
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
     html = index(site)
     문흥18줄 = list_row(html, "문흥18")
@@ -479,7 +511,8 @@ def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
 
 
 def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
-    주소 = re.findall(r'hx-get="([^"]+)"', index(site))
+    # 입력칸의 `route/{number}.html`은 틀이라 뺀다 — 값이 들어가야 주소가 된다
+    주소 = [u for u in re.findall(r'hx-get="(route/[^"]+)"', index(site)) if "{" not in u]
     assert len(주소) == 103
     for url in 주소:
         assert (site / url).exists(), url
@@ -500,3 +533,18 @@ def test_두_탭의_입력칸이_자리를_잡고_결과_영역은_비어_있다
     assert html.count("장소나 주소 입력 (예: 전남대)") == 2   # 출발·도착
     assert 'id="result"' in html
     assert "route-change" not in html   # 카드는 아직 안 끼워져 있다
+
+
+def test_장소_입력칸_둘은_자동완성을_부르고_후보를_고르면_비교를_요청한다(site: Path) -> None:
+    html = index(site)
+    assert html.count('hx-get="/places"') == 2
+    assert html.count('hx-trigger="keyup changed delay:250ms"') == 2
+    장소칸 = [줄 for 줄 in html.splitlines() if "장소나 주소 입력 (예: 전남대)" in 줄]
+    assert all("disabled" not in 줄 for 줄 in 장소칸)
+    assert "장소로 찾기는 아직 준비 중입니다" not in html
+    assert 'id="from-candidates"' in html
+    assert 'id="to-candidates"' in html
+    assert 'id="place-result"' in html
+    assert (site / "place.js").exists()
+    script = (site / "place.js").read_text(encoding="utf-8")
+    assert "/compare?from=" in script

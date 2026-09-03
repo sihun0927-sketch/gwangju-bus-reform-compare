@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,10 +28,14 @@ ROUTE_COLUMNS = (
 )
 TABLE_COLUMNS = ("기존 노선", "신규(대체) 노선")
 
-# 명칭 사전이 읽는 CSV. 정류장은 이름으로만 견준다 — 노선안 CSV에 정류장 ID가 없다
-RENAME_COLUMNS = ("현 정류소", "변경정류소")
+# 명칭 사전이 읽는 CSV. 노선안 CSV에는 정류장 ID가 없어 노선 변화 표는 이름으로만 견주지만,
+# 이 CSV의 「ID」는 `stops.csv`의 ARS_ID와 102/102로 이어진다(ADR-0007) — 번들이 그쪽을 쓴다
+RENAME_COLUMNS = ("현 정류소", "ID", "변경정류소")
 REMOVAL_COLUMNS = ("구분", "정류소명", "통폐합사유")
 ADDITION_COLUMNS = ("정류소",)
+
+# 정류장 좌표 — 시 공표 CSV가 아니라 광주 BIS API에서 받아 둔 것이다(ADR-0007). 읽기만 한다
+STOPS_COLUMNS = ("STATION_NUM", "BUSSTOP_NAME", "ARS_ID", "LATITUDE", "LONGITUDE")
 
 RENAME_CSV = "명칭 변경 정류소.csv"
 REMOVAL_CSV = "통폐합이전정류소.csv"
@@ -38,6 +43,8 @@ ADDITION_CSV = "신설 정류소.csv"
 BEFORE_CSV = "광주권역 개편전 노선안.csv"
 AFTER_CSV = "광주권역 개편후 노선안.csv"
 TABLE_CSV = "노선개편 전후 비교표.csv"
+STOPS_CSV = "stops.csv"
+NAME_CANON_JSON = "name_canon.json"
 
 # 「지선 97(빛그린산단출근)」 → 종류 지선 · 번호 97 · 방면 빛그린산단출근. 「228」은 종류 없음
 ROUTE_RE = re.compile(r"^(?P<kind>[^\d\s(]+)?\s*(?P<num>\d+(?:-\d+)?)\s*(?:\((?P<branch>[^)]*)\))?$")
@@ -63,8 +70,9 @@ class Route:
 class Rename:
     """명칭 변경 CSV 한 행 — 정류장 ID 하나가 행 하나라 같은 옛 이름이 여러 행에 나온다."""
 
-    old: str   # 현 정류소 — 개편 전 노선안이 쓰는 이름
-    new: str   # 변경정류소 — 개편 후 노선안이 쓰는 이름
+    old: str      # 현 정류소 — 개편 전 노선안이 쓰는 이름. `stops.csv`의 표기와 다를 수 있다
+    new: str      # 변경정류소 — 개편 후 노선안이 쓰는 이름
+    ars_id: str   # ID — `stops.csv`의 ARS_ID. 이름이 아니라 이것이 정류장을 가리킨다
 
 
 @dataclass(frozen=True)
@@ -74,6 +82,21 @@ class Removal:
     kind: str    # 구분 — 통폐합 / 폐지 / 이전
     stop: str    # 정류소명. 「A(B)」는 B를 A로 흡수했다는 뜻이라 노선안의 이름과 안 맞는다
     reason: str  # 통폐합사유 — 화면에는 `title`로만 나온다
+
+
+@dataclass(frozen=True)
+class Stop:
+    """`stops.csv` 한 줄. 정류장의 정체성이 이 줄이고 키는 STATION_NUM이다(ADR-0008 결정 2).
+
+    같은 이름이 보통 두 줄이다 — 길 양쪽이 따로다. 이름은 노선안과 잇는 데만 쓰는 열쇠이지
+    정체성이 아니다.
+    """
+
+    station_num: str   # STATION_NUM — 번들 stops의 키
+    name: str          # BUSSTOP_NAME. 꼬리 공백을 뗀 값(ADR-0007)
+    ars_id: str        # ARS_ID. 전남 정류장은 비어 있어 키가 될 수 없다
+    lat: float         # LATITUDE
+    lng: float         # LONGITUDE
 
 
 @dataclass(frozen=True)
@@ -163,7 +186,10 @@ def read_replacements(source: Path) -> list[Replacement]:
 def read_renames(source: Path) -> list[Rename]:
     """명칭 변경 정류소 102행. 사전으로 만드는 것은 `rename_dict`가 한다."""
     rows = read_csv(source / RENAME_CSV, RENAME_COLUMNS)
-    return [Rename(old=r["현 정류소"].strip(), new=r["변경정류소"].strip()) for r in rows]
+    return [
+        Rename(old=r["현 정류소"].strip(), new=r["변경정류소"].strip(), ars_id=r["ID"].strip())
+        for r in rows
+    ]
 
 
 def read_removals(source: Path) -> list[Removal]:
@@ -178,6 +204,48 @@ def read_removals(source: Path) -> list[Removal]:
 def read_additions(source: Path) -> list[str]:
     """신설 정류소 68행 — 이름만 쓴다."""
     return [r["정류소"].strip() for r in read_csv(source / ADDITION_CSV, ADDITION_COLUMNS)]
+
+
+def read_stops(source: Path) -> list[Stop]:
+    """`stops.csv` 4,746줄 — 좌표의 유일한 출처(ADR-0007). 이 빌드는 이 파일을 읽기만 한다.
+
+    이름의 꼬리 공백은 뗀다(API 자료의 함정, ADR-0007). 같은 STATION_NUM이 두 줄이면 멈춘다 —
+    번들 stops의 키라 겹치면 한 줄이 조용히 사라진다.
+    """
+    rows = read_csv(source / STOPS_CSV, STOPS_COLUMNS)
+    stops: list[Stop] = []
+    seen: set[str] = set()
+    for r in rows:
+        num = r["STATION_NUM"].strip()
+        if num in seen:
+            raise BuildError(f"{STOPS_CSV}의 STATION_NUM이 겹칩니다: {num}")
+        seen.add(num)
+        try:
+            lat, lng = float(r["LATITUDE"]), float(r["LONGITUDE"])
+        except ValueError:
+            raise BuildError(
+                f"{STOPS_CSV}의 좌표를 읽을 수 없습니다: STATION_NUM {num} "
+                f"({r['LATITUDE']!r}, {r['LONGITUDE']!r})"
+            ) from None
+        stops.append(
+            Stop(station_num=num, name=r["BUSSTOP_NAME"].strip(), ars_id=r["ARS_ID"].strip(),
+                 lat=lat, lng=lng)
+        )
+    return stops
+
+
+def read_name_canon(path: Path) -> dict[str, str | None]:
+    """노선안 표기 → `stops.csv` 정식 표기(ADR-0007). 값이 `None`이면 좌표가 없다는 뜻이다.
+
+    사람이 손대는 파일이 아니라 `tools/build_stops.py`가 쓰는 파일이라 `data/source/`가 아니라
+    그 위 `data/`에 있다 — 기·종점 정렬표와 같은 자리다.
+    """
+    if not path.exists():
+        raise BuildError(f"이름 잇기 표가 없습니다: {path}")
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise BuildError(f"{path.name}은 객체 하나여야 합니다.")
+    return {str(k): (None if v is None else str(v)) for k, v in raw.items()}
 
 
 def find_after(routes: list[Route], spelled: str) -> list[Route]:
