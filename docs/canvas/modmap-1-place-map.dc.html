@@ -1,0 +1,241 @@
+<meta charset="utf-8">
+<title>장소로 찾기 · 모듈 지도</title>
+<link rel="stylesheet" href="canvas.css">
+<style>
+  .artboard { width: 1500px; }
+  .cols, .row { grid-template-columns: 320px 34px 246px 250px 260px 286px; }
+</style>
+
+<div class="artboard">
+  <div class="sheet-head">
+    <h1>장소로 찾기 · 모듈 지도</h1>
+    <div class="legend">
+      <span class="key">왼쪽 = 시민이 보는 화면을 위에서 아래로 자른 것 · 화살표 = 그 부분을 담당하는 모듈 행</span>
+      <span class="key"><i class="swatch"></i> 정적</span>
+      <span class="key"><i class="swatch dynamic"></i> 동적 (Worker)</span>
+      <span class="key"><i class="swatch browser"></i> 브라우저 JS</span>
+      <span class="key"><i class="swatch bundle"></i> 번들 JSON</span>
+      <span class="key">● 있는 데이터 · ○ 아직 없는 데이터</span>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>화면 (시민이 보는 것)</div>
+    <div></div>
+    <div>화면 모듈 (CONTEXT.md 용어)</div>
+    <div>조각 · URL</div>
+    <div>만드는 곳 (Worker)</div>
+    <div>데이터 (번들 JSON · 파일 · 키)</div>
+  </div>
+
+  <div class="band">A. 껍데기 — 유일한 정적 부분</div>
+  <div class="row">
+    <div class="screen">
+      <div class="title">버스개편 비교</div>
+      <div class="tabs"><span class="on">장소로 찾기</span><span>노선번호로 찾기</span></div>
+      <div class="field"><b>장소나 주소 입력</b><span class="side">출발</span></div>
+      <div class="field"><b>장소나 주소 입력</b><span class="side">도착</span></div>
+      <div class="num">1</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="cell">
+      <span class="badge static">정적</span>
+      <h3>껍데기</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms"><span class="term">껍데기</span><span class="term">장소로 찾기 / 노선번호로 찾기</span></div>
+      <p>제목 · 탭 · 출발/도착 입력칸 · 안내문 · 빈 결과 영역. 예시 쌍 버튼은 없다</p>
+    </div>
+    <div class="cell">
+      <span class="badge static">정적</span>
+      <h3 class="mono">index.html</h3>
+      <p>노선번호 탭과 같은 파일. 입력칸에
+        <code>hx-get="/places"</code> <code>hx-trigger="keyup changed delay:250ms"</code></p>
+    </div>
+    <div class="cell">
+      <span class="badge build">빌드</span>
+      <h3 class="mono">shell</h3>
+      <p>두 탭 공용 껍데기 템플릿. Worker가 아니다 — 빌드가 만든다</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data"><li class="none">없음</li></ul>
+    </div>
+  </div>
+
+  <div class="band">B. 입력 — 장소를 좌표로</div>
+  <div class="row">
+    <div class="screen">
+      <div class="field"><b>전남대</b><span class="side">출발</span></div>
+      <div class="opt on">전남대 <span>광주 북구 용봉동</span></div>
+      <div class="opt">전남대학교병원 <span>광주 동구 학동</span></div>
+      <div class="opt">전남대 후문 <span>광주 북구 용봉동</span></div>
+      <div class="num">2</div>
+    </div>
+    <div class="arrow dynamic">⇢</div>
+    <div class="cell dashed">
+      <span class="badge dynamic">동적</span>
+      <h3>자동완성 후보</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms"><span class="term">자동완성 후보</span></div>
+      <p>장소 이름 · 주소 목록. 고르면 좌표가 입력칸의 값이 된다. 노선번호 탭과 같은 이름·동작, 출처만 다르다</p>
+    </div>
+    <div class="cell dashed">
+      <span class="badge dynamic">동적</span>
+      <h3 class="mono">GET /places?q=전남대</h3>
+      <p>Worker가 <code>&lt;ul&gt;</code> 조각을 돌려줌. 항목마다 <code>data-lat</code> <code>data-lng</code>.
+        두 글자 미만은 빈 조각, 실패·빈 결과는 한 줄 문구</p>
+    </div>
+    <div class="cell">
+      <span class="badge worker">Worker</span>
+      <h3 class="mono">places</h3>
+      <p>Kakao 로컬 REST 대리 호출 → 상위 5개 → HTML. 검색 범위는 번들의 노선안 정류장 bbox + 5km.
+        같은 검색어는 Cache API에 하루</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data">
+        <li>Kakao REST 키 (Worker 환경 변수 <code>KAKAO_REST_KEY</code>, ADR-0005)</li>
+        <li class="have">번들 JSON: 노선안 정류장 bbox</li>
+        <li class="none">외부: Kakao 로컬 API</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="band">C. 비교 — 좌표 두 개를 카드 한 쌍으로</div>
+  <div class="row">
+    <div class="screen">
+      <div style="display:flex; gap:8px;">
+        <div style="flex:1; border:1px solid var(--line); border-radius:5px; padding:6px 8px;">
+          <div style="display:flex; justify-content:space-between; font-size:11px;">
+            <b>개편 전</b><span style="color:var(--teal); font-weight:700;">환승 2회</span>
+          </div>
+          <div style="font-size:10.5px; color:var(--ink-soft); margin-top:4px;">
+            북구보건소 승차<br>두암81 · 좌석02 · 진곡196<br>15분 · 정류장 20곳 · 도보 531m
+          </div>
+        </div>
+        <div style="flex:1; border:1px solid var(--line); border-radius:5px; padding:6px 8px;">
+          <div style="display:flex; justify-content:space-between; font-size:11px;">
+            <b>개편 후</b><span style="color:var(--teal); font-weight:700;">환승 2회</span>
+          </div>
+          <div style="font-size:10.5px; color:var(--ink-soft); margin-top:4px;">
+            북구보건소 승차<br>지선43 · 지선82 · 간선45<br>13분 · 정류장 16곳 · 도보 531m
+          </div>
+        </div>
+      </div>
+      <div class="num">3</div>
+    </div>
+    <div class="arrow dynamic">⇢</div>
+    <div class="cell dashed">
+      <span class="badge dynamic">동적</span>
+      <h3>개편 전 카드 / 개편 후 카드</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms">
+        <span class="term">개편 전 카드</span><span class="term">개편 후 카드</span><span class="term">상태</span>
+      </div>
+      <p>카드 머리에 <b>상태</b>가 선다 — 직행 · 환승 1회 · 환승 2회 · 경로 없음.
+        <b>판정 문장은 두지 않는다</b>(§7 Q11). 두 카드의 안은 같은 모양이다</p>
+    </div>
+    <div class="cell dashed">
+      <span class="badge dynamic">동적</span>
+      <h3 class="mono">GET /compare?<br>from=lat,lng&amp;to=lat,lng</h3>
+      <p>카드 한 쌍 + 경로 지도 자리를 한 조각으로. 카드 안에 그 경로의 좌표 JSON과
+        「다른 경로 더 보기」의 <code>hx-get="/journey/…"</code></p>
+    </div>
+    <div class="cell">
+      <span class="badge worker">Worker</span>
+      <h3 class="mono">compare</h3>
+      <p>안이 다섯이다 — <code>network</code> → <code>candidates</code> → <code>search</code> →
+        <code>rank</code> → <code>render</code>. 노선망 둘 각각 한 번.
+        두 지점이 500m 이하면 「걸어갈 수 있는 거리」</p>
+      <p style="color:var(--orange);"><b>요청당 CPU 중앙값 20~21ms</b> — 무료 요금제 상한 10ms를 넘는다(§6-4 · §8)</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data">
+        <li class="have">번들 JSON <code>worker/data.json</code> 2.02MB</li>
+        <li class="have">stops 4,803 · routes 230 · route_stops 42,390</li>
+        <li class="have">transfers 6,566 · route_links 7,250</li>
+        <li class="none">D1은 쓰지 않는다 (ADR-0008)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="band">D. 펼침 — 경로 하나를 더 깊게</div>
+  <div class="row">
+    <div class="screen">
+      <div class="field"><b>다른 경로 더 보기</b><span class="side">▸</span></div>
+      <div style="font-size:11px; margin-top:6px;">북구보건소 승차 <span class="term">지선43</span> → 광산구청 하차</div>
+      <div style="font-size:10.5px; color:var(--ink-soft); margin-top:3px;">14분 · 환승 2회 · 도보 531m</div>
+      <div style="margin-top:6px;"><span class="term">지도에 표시</span></div>
+      <div class="num">4</div>
+    </div>
+    <div class="arrow dynamic">⇢</div>
+    <div class="cell dashed">
+      <span class="badge dynamic">동적</span>
+      <h3>다른 경로 카드</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms"><span class="term">다른 경로 카드</span><span class="term">경로 키</span></div>
+      <p>「다른 경로 더 보기」로 펼치는, 노선 조합이 다른 경로 최대 2개. 카드마다 「지도에 표시」</p>
+    </div>
+    <div class="cell dashed">
+      <span class="badge dynamic">동적</span>
+      <h3 class="mono">GET /journey/{경로 키}</h3>
+      <p>경로 하나의 정류장 목록 · 지표 · 좌표 배열 조각. 경로 키는 <code>compare</code>가 조각에 박아 둔 것이고,
+        저장소가 없어 링크만으로 열린다</p>
+    </div>
+    <div class="cell">
+      <span class="badge worker">Worker</span>
+      <h3 class="mono">journey</h3>
+      <p>키를 풀어 번들에서 되살린다. <b>탐색을 다시 하지 않는다</b> — 구간마다 방향·순번만 고른다.
+        키가 번들과 안 맞으면 404와 한 줄 문구</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data">
+        <li class="have">번들 JSON stops · route_stops (C와 같은 표)</li>
+        <li class="none">저장소 없음 — 키에 든 것이 전부다</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="screen">
+      <div style="height:74px; background:var(--band); border-radius:5px; position:relative;">
+        <svg width="100%" height="74" viewBox="0 0 290 74">
+          <path d="M18 58 C 70 30, 150 22, 262 16" fill="none" stroke="#5c6b68" stroke-width="3" stroke-dasharray="7 5"/>
+          <path d="M18 58 C 120 66, 190 44, 262 16" fill="none" stroke="#0e6b5c" stroke-width="3"/>
+          <circle cx="18" cy="58" r="5" fill="#fff" stroke="#0e6b5c" stroke-width="2.5"/>
+          <circle cx="262" cy="16" r="5" fill="#fff" stroke="#0e6b5c" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <div style="font-size:10.5px; margin-top:5px; color:var(--ink-soft);">
+        <b style="color:#5c6b68;">--</b> 개편 전 경로 &nbsp; <b style="color:var(--teal);">—</b> 개편 후 경로
+      </div>
+      <div class="num">5</div>
+    </div>
+    <div class="arrow browser">⇢</div>
+    <div class="cell dotted">
+      <span class="badge browser">브라우저</span>
+      <h3>경로 지도</h3>
+      <p class="terms-label">용어</p>
+      <div class="terms"><span class="term">경로 지도</span></div>
+      <p>개편 전 경로(점선) + 개편 후 경로(실선), 카드당 하나. 그리는 것은 Kakao JS.
+        「지도에 표시」로 그 노선망에 올릴 경로를 고른다</p>
+    </div>
+    <div class="cell dashed">
+      <span class="badge dynamic">동적</span>
+      <h3 class="mono">compare / journey 조각 안</h3>
+      <p><code>&lt;script type="application/json"&gt;</code> 좌표 배열.
+        htmx가 끼운 뒤 <code>htmx:afterSwap</code>에서 그린다</p>
+    </div>
+    <div class="cell">
+      <span class="badge worker">Worker</span>
+      <h3 class="mono">geometry</h3>
+      <p>경로 하나를 점 목록으로 편다 — 구간마다 승차부터 하차까지 지나는 정류장 전부와 두 지점.
+        길 양쪽이면 앞 점에 가까운 줄, 좌표 없는 줄은 건너뛴다. 도로 형상은 두지 않는다(직선)</p>
+      <p class="note">그리는 <code>map</code>은 브라우저 코드이고 노선번호 탭과 같은 함수다</p>
+    </div>
+    <div class="cell plain">
+      <ul class="data">
+        <li>Kakao JS 키 (Cloudflare 환경 변수, ADR-0005)</li>
+        <li class="have">번들 JSON stops (좌표)</li>
+      </ul>
+    </div>
+  </div>
+</div>
