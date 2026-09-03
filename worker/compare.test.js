@@ -24,9 +24,16 @@ async function 비교(from, to) {
   return await 응답.text();
 }
 
-/** 조각에서 노선망 하나의 카드만 떼어 낸다. 카드가 없으면 빈 문자열. */
+/**
+ * 조각에서 노선망 하나의 카드만 떼어 낸다. 카드가 없으면 빈 문자열.
+ *
+ * 「다른 경로 더 보기」는 카드 **밖**에 선다(격자 둘째 줄) — 같은 노선망의 것이라 함께 뗀다.
+ */
 function 카드(글, 노선망) {
-  const 자리 = new RegExp(`<article[^>]*data-network="${노선망}"[^]*?</article>`);
+  const 자리 = new RegExp(
+    `<article[^>]*data-network="${노선망}"[^]*?</article>`
+    + `(?:<details[^>]*data-network="${노선망}"[^]*?</details>)?`,
+  );
   return (글.match(자리) ?? [""])[0];
 }
 
