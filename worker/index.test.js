@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { metresBetween } from "./candidates.js";
 import worker from "./index.js";
 import * as rules from "./rules.js";
 
@@ -108,6 +109,22 @@ test("번들이 Worker에 실려 있다", async () => {
   // 줄 수 자체는 번들 검사(pytest)가 본다. 여기서는 번들이 살아 있다는 것만 본다
   const 표식 = (await 부른다("/compare")).headers.get("x-bundle");
   assert.match(표식, /^stops=[1-9]\d{3,} routes=[1-9]\d{2,}$/);
+});
+
+test("번들의 환승 거리를 Worker가 다시 재도 같은 값이 나온다", async () => {
+  // 거리를 재는 셈이 두 곳에 있다 — 빌드는 파이썬(`tools/build/bundle.py`의 `metres_between`),
+  // Worker는 JS(`candidates.js`의 `metresBetween`). 둘이 갈리면 번들의 「350m 안」과 카드가 재는
+  // 도보권이 다른 자를 쓰게 되는데, 어느 쪽 검사도 그것만으로는 못 잡는다. 자료로 묶어 둔다
+  const 번들 = JSON.parse(
+    readFileSync(join(dirname(fileURLToPath(import.meta.url)), "data.json"), "utf8"),
+  );
+  const 걸음 = 번들.transfers.filter((_, i) => i % 97 === 0);   // 6,566줄에서 68줄
+  assert.ok(걸음.length > 50, 걸음.length);
+  for (const [a, b, m] of 걸음) {
+    const 잰 = metresBetween(번들.stops[a], 번들.stops[b]);
+    assert.equal(Math.round(잰), m, `${a}↔${b}`);
+    assert.ok(잰 <= rules.TRANSFER_WALK_M, `${a}↔${b} ${잰}`);
+  }
 });
 
 test("규칙 상수는 rules 한 곳에 있다", () => {

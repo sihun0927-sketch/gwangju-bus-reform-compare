@@ -1,9 +1,13 @@
 /**
- * 장소 탭의 계산 규칙 상수 — 한 곳 (ADR-0008).
+ * 장소 탭의 계산 규칙 — 한 곳 (ADR-0008).
  *
  * 값이 코드 여기저기 흩어지면 「도보권이 몇 미터였더라」를 읽는 곳마다 찾아야 하고, 배차 자료가
  * 들어오거나 실측으로 값을 고칠 때 한 군데를 빠뜨린다. 뜻은 CONTEXT.md 「장소로 찾기」 절에 있고,
- * 여기에는 숫자와 그 숫자를 고른 까닭만 적는다.
+ * 여기에는 숫자와 그 숫자를 고른 까닭, 그리고 그 숫자로 하는 셈 하나만 적는다.
+ *
+ * 셈이 여기 있는 까닭: 추정 소요 시간은 `rank`가 순위를 매길 때도, `search`가 「뒤에 무슨 일이 있어도
+ * 못 이길 칸」을 버릴 때도 쓴다. 둘 중 한쪽에 두면 파이프라인(`candidates` → `search` → `rank`)을
+ * 거슬러 import하게 되고, 따로 두면 탐색이 버린 것이 순위에서 1등일 수 있다.
  */
 
 /** 지점에서 이만큼 안의 정류장을 걸어갈 수 있다고 본다. 도착지는 이 값 하나로 고정이다. */
@@ -47,3 +51,21 @@ export const PLACE_CACHE_SECONDS = 24 * 60 * 60;
 
 /** Kakao 검색 범위를 번들의 노선안 정류장 bbox에서 이만큼 넓힌다. */
 export const PLACE_SEARCH_MARGIN_M = 5000;
+
+const SECONDS_PER_HOUR = 3600;
+const METRES_PER_KM = 1000;
+
+/** 도보 거리(m)를 걷는 데 걸리는 시간(초). */
+function walkSeconds(metres) {
+  return (metres / (WALK_SPEED_KMH * METRES_PER_KM)) * SECONDS_PER_HOUR;
+}
+
+/**
+ * 정류장 몇 개와 도보 몇 미터의 추정 소요 시간(초) (CONTEXT 「추정 소요 시간」).
+ *
+ * 배차 대기는 넣지 않는다 — 시각표가 없다. 도보 몫이 거리에 정비례하므로 구간을 나눠 재서 더한
+ * 값과 한꺼번에 잰 값이 같다. `search`의 가지치기가 그 성질에 기대고 있다.
+ */
+export function estimateSeconds(stopsPassed, walkMetres) {
+  return stopsPassed * SECONDS_PER_STOP + walkSeconds(walkMetres);
+}
