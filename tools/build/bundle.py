@@ -14,10 +14,15 @@ D1은 만들지 않는다.
 
 좌표가 아직 없는 57개(신설 56 + 광주교대역2번출구)는 예외다. 같은 노선 앞뒤 정류장의 중점을
 **추정 좌표**로 받고 추정 여부 플래그가 켜진다(ADR-0007 개정). `stops.csv`에는 쓰지 않는다.
+
+환승에 쓰는 표 둘(transfers · route_links)도 여기서 만든다. 요청 때 계산하지 않는 까닭은
+ADR-0008에 적혀 있다 — 재료가 시 공표 CSV로 고정이라 한 번 재면 끝이다. 실측은
+`tools/measure_transfers.py`가 이 모듈을 그대로 불러 낸다(수치가 두 곳에서 갈리지 않게).
 """
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,6 +44,17 @@ ESTIMATED_PREFIX = "est:"
 # 중점을 소수 8자리로 끊는다 — 위도 1mm 아래라 도보 거리에 무해하고, 실수 계산의 꼬리를 안 남긴다
 ESTIMATED_DIGITS = 8
 
+# 환승 도보 상한(m) — CONTEXT 「환승 도보」. 빌드는 파이썬이라 `worker/rules.js`를 import할 수 없어
+# 값을 여기 한 번 더 적는다. 두 곳이 갈리면 번들 검사(`test_빌드_상수가_worker_rules와_같다`)가 잡는다
+TRANSFER_WALK_M = 350
+
+# 지구 반지름(m). 고르는 값이 아니라 물리 상수다 — Worker의 `candidates.js`도 같은 값을 쓴다
+EARTH_RADIUS_M = 6371000.0
+
+# 환승 쌍을 찾을 때 정류장을 담는 칸의 한 변(m). 한 칸과 그 이웃 여덟 칸만 재면 350m 안이 다 든다.
+# 3,054개를 전부 맞대면 460만 번인데 이렇게 하면 수만 번이라 빌드가 몇 초 짧아진다
+GRID_M = TRANSFER_WALK_M
+
 
 # 노선 → 방향 → 정류장 이름 차례. 노선안 CSV가 준 것 그대로이고, 이름을 줄에 잇기 전 모습이다
 Plans = dict[str, dict[str, tuple[str, ...]]]
@@ -52,6 +68,8 @@ class Counts:
     estimated: int      # 그중 추정 좌표
     routes: int         # 개편 전 111 + 개편 후 119
     route_stops: int    # 노선 × 방향 × 순번 × STATION_NUM 줄 수
+    transfers: int      # 환승 도보 안 정류장 쌍 줄 수
+    route_links: int    # 노선 쌍당 최단 환승 지점 줄 수
 
 
 @dataclass(frozen=True)
@@ -163,11 +181,18 @@ def make(
         for rid, sides in plans.items()
     }
     used = {sid for ids in linked.values() for sid in ids}
+    # 줄을 늘 같은 차례로 본다 — 최단이 여럿일 때 어느 것을 고를지가 빌드마다 달라지지 않게.
+    # `out_stops`는 `stops.csv` 차례 뒤에 추정 좌표가 붙은 것이라 그 자리가 곧 차례다
+    place = {sid: i for i, sid in enumerate(out_stops)}
+    transfers = transfer_pairs(used, out_stops, place)
+    links = route_links(route_stops, routes, transfers, place)
     data = {
         "bbox": _bbox(used, out_stops),
         "stops": out_stops,
         "routes": routes,
         "route_stops": route_stops,
+        "transfers": [list(x) for x in transfers],
+        "route_links": [list(x) for x in links],
     }
     return Bundle(
         data=data,
@@ -179,8 +204,106 @@ def make(
                 len(x["stops"]) for sides in route_stops.values() for side in sides.values()
                 for x in side
             ),
+            transfers=len(transfers),
+            route_links=len(links),
         ),
     )
+
+
+def metres_between(a: dict, b: dict) -> float:
+    """두 정류장 사이 직선 거리(m). 도로를 따르지 않는다 — Worker의 `metresBetween`과 같은 셈이다."""
+    φ1, φ2 = math.radians(a["lat"]), math.radians(b["lat"])
+    Δφ = math.radians(b["lat"] - a["lat"])
+    Δλ = math.radians(b["lng"] - a["lng"])
+    h = math.sin(Δφ / 2) ** 2 + math.cos(φ1) * math.cos(φ2) * math.sin(Δλ / 2) ** 2
+    return 2 * EARTH_RADIUS_M * math.asin(math.sqrt(h))
+
+
+def transfer_pairs(
+    used: set[str],
+    stops: dict[str, dict],
+    place: dict[str, int],
+) -> list[tuple[str, str, int]]:
+    """환승 도보 안에 함께 있는 정류장 줄 쌍 (CONTEXT 「환승 도보」).
+
+    노선안이 지나는 줄만 본다. 아무 버스도 안 서는 줄을 넣으면 「갈아탈 곳」이 못 타는 곳이 되고,
+    표만 커진다. 같은 줄끼리(거리 0)는 쌍이 아니다 — 갈아타는 데 걷지 않는 경우는 `route_links`가
+    거리 0으로 따로 적는다.
+    """
+    grid: dict[tuple[int, int], list[str]] = {}
+    가로 = GRID_M / (111320.0 * math.cos(math.radians(_middle_lat(used, stops))))
+    세로 = GRID_M / 111320.0
+    for sid in sorted(used, key=place.__getitem__):
+        s = stops[sid]
+        grid.setdefault((int(s["lat"] // 세로), int(s["lng"] // 가로)), []).append(sid)
+
+    pairs: list[tuple[str, str, int]] = []
+    for (y, x), 칸 in grid.items():
+        # 이웃 아홉 칸. 칸 한 변이 상한과 같아 그 밖은 잴 것도 없이 350m를 넘는다
+        이웃 = [j for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+               for j in grid.get((y + dy, x + dx), ())]
+        for i in 칸:
+            for j in 이웃:
+                if place[j] <= place[i]:
+                    continue      # 쌍은 한 번만. 앞 차례 쪽이 왼쪽에 온다
+                metres = metres_between(stops[i], stops[j])
+                if metres <= TRANSFER_WALK_M:
+                    pairs.append((i, j, round(metres)))
+    pairs.sort(key=lambda x: (place[x[0]], place[x[1]]))
+    return pairs
+
+
+def route_links(
+    route_stops: dict[str, dict],
+    routes: dict[str, dict],
+    transfers: list[tuple[str, str, int]],
+    place: dict[str, int],
+) -> list[tuple[str, str, str, str, int]]:
+    """노선 쌍마다 **가장 가까운** 환승 지점 하나 (ADR-0008 결정 1).
+
+    한 쌍에 하나만 두는 것이 이 표를 번들에 넣을 수 있게 하는 결정이다. 대신 그 한 자리가 승차
+    지점보다 앞 순번이면 그 노선 쌍으로는 경로가 안 나온다 — 「쌍당 최단 1개」가 치르는 값이다.
+
+    같은 노선망 안에서만 잇는다(CONTEXT 「노선망」). 두 노선이 같은 줄에 서면 거리 0이다.
+    최단이 여럿이면 줄 차례가 앞선 쪽을 고른다 — 빌드마다 같은 답이 나오게 하는 것뿐이다.
+    """
+    이웃: dict[str, list[tuple[str, int]]] = {}
+    for a, b, metres in transfers:
+        이웃.setdefault(a, []).append((b, metres))
+        이웃.setdefault(b, []).append((a, metres))
+
+    구성 = {
+        rid: sorted({i for side in sides.values() for x in side for i in x["stops"]},
+                    key=place.__getitem__)
+        for rid, sides in route_stops.items()
+    }
+    by_stop: dict[str, dict[str, list[str]]] = {}
+    for rid, ids in 구성.items():
+        network = routes[rid]["network"]
+        for i in ids:
+            by_stop.setdefault(i, {}).setdefault(network, []).append(rid)
+
+    best: dict[tuple[str, str], tuple[str, str, int]] = {}
+    for rid in sorted(구성):
+        network = routes[rid]["network"]
+        for here in 구성[rid]:
+            for there, metres in ((here, 0), *이웃.get(here, ())):
+                for other in by_stop.get(there, {}).get(network, ()):
+                    if other == rid:
+                        continue
+                    낮은, 높은 = (rid, other) if rid < other else (other, rid)
+                    앞선 = best.get((낮은, 높은))
+                    if 앞선 is not None and 앞선[2] <= metres:
+                        continue
+                    # 줄 둘의 차례는 노선 이름의 차례를 따른다 — 왼쪽 노선의 줄이 앞이다
+                    자리 = (here, there) if 낮은 == rid else (there, here)
+                    best[(낮은, 높은)] = (*자리, metres)
+    return [(a, b, *best[(a, b)]) for a, b in sorted(best)]
+
+
+def _middle_lat(used: set[str], stops: dict[str, dict]) -> float:
+    """칸의 가로 크기를 잴 위도. 광주 노선망은 남북으로 좁아 한 값이면 된다."""
+    return sum(stops[i]["lat"] for i in used) / len(used)
 
 
 def write(path: Path, bundle: Bundle) -> int:

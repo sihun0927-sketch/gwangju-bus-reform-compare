@@ -9,7 +9,7 @@ import { metresBetween, walkableStops } from "./candidates.js";
 import { NETWORKS } from "./network.js";
 import { rank } from "./rank.js";
 import * as render from "./render.js";
-import { directJourneys } from "./search.js";
+import { journeys } from "./search.js";
 import { WALK_RADIUS_M } from "./rules.js";
 
 /** 검색 조건 → 조각 하나. 좌표가 없거나 깨져도 조각을 돌려준다 — 화면이 조용히 멈추지 않는다. */
@@ -30,7 +30,7 @@ function 카드(network, from, to) {
   if (!도착.length) return render.outOfReach(network);
 
   const 출발 = walkableStops(network, from, { expand: true });
-  const [기본] = rank(directJourneys(network, 출발, 도착));
+  const [기본] = rank(journeys(network, 출발, 도착));
   return render.card(network, 기본);
 }
 
