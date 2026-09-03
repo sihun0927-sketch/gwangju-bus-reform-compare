@@ -24,7 +24,10 @@ def main(argv: list[str]) -> int:
         print(f"빌드를 멈춥니다.\n{e}", file=sys.stderr)
         return 1
     manual = sum(result.stages.get(s, 0) for s in MANUAL_STAGES)
-    print(f"노선 변화 표 {result.tables}개를 {result.out}에 썼습니다.")
+    print(
+        f"노선 변화 표 {result.tables}개와 노선 변화 카드 {result.cards}개를"
+        f" {result.out}에 썼습니다."
+    )
     print(
         f"기·종점 정렬 — ① 기·종점 이름 {result.stages.get(STAGE_NAME, 0)}"
         f" · ② 겹침 {result.stages.get(STAGE_OVERLAP, 0)}"

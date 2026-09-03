@@ -6,7 +6,7 @@
     python -m tools.build                    # data/source → out/
     python -m tools.build data/source out    # 경로를 직접 줄 때
 
-이번 범위는 노선 변화 표 조각 205개다. 껍데기와 노선 변화 카드는 다음 티켓이다.
+이번 범위는 노선 변화 표 조각 205개와 노선 변화 카드 103개다. 껍데기는 다음 티켓이다.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import branches, load, notes, render, stop_match, terminus_align
+from . import branches, load, notes, render, route_card, stop_match, terminus_align
 from .errors import BuildError
 
 __all__ = ["build", "BuildError", "Result"]
@@ -26,6 +26,7 @@ class Result:
 
     out: Path
     tables: int
+    cards: int
     stages: dict[str, int]
 
 
@@ -73,15 +74,28 @@ def build(source: Path, out: Path, *, align_table: Path | None = None) -> Result
 
     before_siblings = branches.by_number(before)
     after_siblings = branches.by_number(after)
+    # 카드는 `out/`을 지우기 전에 다 만들어 본다 — 입력이 틀리면 반쯤 쓰다 만 자리를 남기지 않는다
+    cards = [route_card.card(row, before_siblings.get(row.before, []), after) for row in replacements]
 
     _clear(out, source)
     stages: dict[str, int] = {}
+    tables: dict[tuple[str, str, str, str], str] = {}
     for pair in pairs:
         alignment = alignments[pair.key]
         stages[alignment.stage] = stages.get(alignment.stage, 0) + 1
-        _write_table(out, pair, alignment, before_siblings, after_siblings)
+        tables[pair.key] = _write_table(out, pair, alignment, before_siblings, after_siblings)
 
-    return Result(out=out, tables=len(pairs), stages=stages)
+    for card in cards:
+        # 카드는 자기 기본 표를 통째로 품는다 — 열자마자 버튼을 누르기 전에도 답이 보인다
+        html = render.route_change_card(card, tables[card.default] if card.default else "")
+        _write(out / "route" / f"{card.before.number}.html", html)
+
+    return Result(out=out, tables=len(pairs), cards=len(cards), stages=stages)
+
+
+def _write(path: Path, html: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(html, encoding="utf-8")
 
 
 def _write_table(
@@ -90,7 +104,7 @@ def _write_table(
     alignment: terminus_align.Alignment,
     before_siblings: dict[str, list[load.Route]],
     after_siblings: dict[str, list[load.Route]],
-) -> None:
+) -> str:
     flipped = bool(alignment.flipped)
     # 뒤집어 맞댄 표의 「개편 후 상행」 칸에는 CSV의 하행이 들어간다 — 개편 전 상행과 같은 방향이다
     after_up = pair.after.down if flipped else pair.after.up
@@ -115,7 +129,5 @@ def _write_table(
         flipped=flipped,
         note=note,
     )
-    number, branch, replacement, after_branch = pair.key
-    path = out / "route" / number / branch / replacement / f"{after_branch}.html"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(html, encoding="utf-8")
+    _write(out / render.fragment_url(pair.key), html)
+    return html
