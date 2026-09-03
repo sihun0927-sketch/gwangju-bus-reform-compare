@@ -571,10 +571,13 @@ def test_Kakao_JS_키를_주면_그_키로_SDK_태그가_박힌다(tmp_path: Pat
 
 
 def test_지도_스크립트는_좌표_배열만_받는다(site: Path) -> None:
-    """노선번호 탭의 노선 지도가 나중에 같은 함수를 쓸 수 있어야 한다(이슈 #27)."""
+    """두 탭이 같은 그리는 함수를 쓴다(이슈 #27). 선과 점을 따로 받는다(2026-09-04)."""
     script = (site / "map.js").read_text(encoding="utf-8")
     assert "window.busMap" in script
-    assert "function draw(자리, 선들)" in script
+    assert "function draw(자리, 그림)" in script
+    # 탭마다 좌표 조각을 그림으로 옮기는 순수 함수. 그리는 일은 여전히 `draw` 하나가 한다
+    assert "function journey(경로들)" in script
+    assert "function route(geometry)" in script
 
 
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
