@@ -121,10 +121,10 @@ const 배차_값 = (v) => (typeof v === "number" ? `${v}분` : 배차_없음);
  */
 export function card(network, journey, { key, geometry, alternatives = [], places = {} } = {}) {
   const 안쪽 = journey
-    ? 경로(network, journey, places) + 지표(journey)
-      + 지도_버튼(network) + 좌표(geometry) + 더_보기(network, alternatives, places)
+    ? 경로(network, journey, places) + 지표(journey) + 지도_버튼(network) + 좌표(geometry)
     : `<p class="notice">이 노선망에서는 환승 ${MAX_TRANSFERS}회 안에 가는 길을 찾지 못했습니다.</p>`;
-  return 카드("journey-card", network, journey, key, 안쪽);
+  return 카드("journey-card", network, journey, key, 안쪽)
+    + (journey ? 다른_경로(network, alternatives, places) : "");
 }
 
 /**
@@ -189,29 +189,37 @@ function 이름_매개변수({ from, to } = {}) {
 }
 
 /**
- * 「다른 경로 더 보기 (2)」와 그 자리 — 누르면 다른 경로 카드가 최대 둘 끼워진다.
+ * 「다른 경로 더 보기 (2)」 — 펴고 접는 `<details>` 하나. 안에 다른 경로 카드가 최대 둘 온다.
  *
- * 개수를 적는 까닭은 누르기 전에 볼 것이 몇 개인지 알리기 위해서다. 0개면 단추가 아예 없으므로
+ * **카드 밖에 선다.** 카드 한 쌍은 지표를 맞추려고 서로 늘어나므로(CONTEXT 「개편 전 카드 /
+ * 개편 후 카드」), 펼친 것이 카드 **안**에 있으면 한쪽만 펼쳐도 격자 줄이 커져 옆 카드가 빈 채로
+ * 따라 늘어난다. 카드는 첫 줄, 이것은 둘째 줄이라 서로 키를 안 건드린다.
+ *
+ * 펴고 접는 일을 `<details>`가 한다 — 우리 스크립트를 하나도 더하지 않는다(ADR-0001). 조각을
+ * 부르는 것은 처음 펼 때 한 번뿐이고(`toggle once`), 그 뒤로 접었다 펴는 것은 브라우저 몫이라
+ * 다시 받아 오지 않는다. `toggle`은 위로 오르지 않는 사건이지만 htmx의 `from:`이 그 자리에
+ * 직접 듣게 하므로 상관없다.
+ *
+ * 개수를 적는 까닭은 펴기 전에 볼 것이 몇 개인지 알리기 위해서다. 0개면 이 자리가 아예 없으므로
  * 적는 값은 1과 2를 가른다.
- *
- * 조각 하나에 경로 하나이므로 자리도 둘이다. 단추 하나가 둘을 함께 부르도록 htmx의
- * `from:`을 쓴다 — 우리 스크립트를 하나도 더하지 않는다(ADR-0001). `once`라 두 번 부르지 않고,
- * 다 채워지면 단추는 CSS가 감춘다.
  */
-function 더_보기(network, keys, places) {
+function 다른_경로(network, keys, places) {
   if (!keys.length) return "";
-  const 단추 = `more-${network.key}`;
+  const 상자 = `more-${network.key}`;
   const 꼬리 = 이름_매개변수(places);
   const 자리 = keys
     .map(
       (key) =>
         `<div data-journey="${key}" hx-get="/journey/${key}${꼬리}"`
-        + ` hx-trigger="click once from:#${단추}" hx-swap="outerHTML"></div>`,
+        + ` hx-trigger="toggle once from:#${상자}" hx-swap="outerHTML"></div>`,
     )
     .join("");
   return (
-    `<button type="button" class="more" id="${단추}">다른 경로 더 보기 (${keys.length})</button>`
-    + `<div class="alternatives">${자리}</div>`
+    `<details class="alternatives" id="${상자}" data-network="${network.key}">`
+    + '<summary class="more">'
+    + `<span class="shut">다른 경로 더 보기 (${keys.length})</span>`
+    + '<span class="open">다른 경로 접기</span></summary>'
+    + `${자리}</details>`
   );
 }
 
