@@ -4,12 +4,14 @@
 """
 from __future__ import annotations
 
+import json
 from html import escape
 
 from .branches import Pair
 from .load import Route
 from .notes import Note
 from .route_card import Card, Choice, Key, NO_REPLACEMENT
+from .route_geometry import Geometry
 from .route_list import Row
 from .shell import RESULT_ID, page as shell_page
 from .stop_match import ADDED, DROPPED, KEPT, Line
@@ -31,6 +33,13 @@ STATE_CLASS = {KEPT: "kept", DROPPED: "dropped", ADDED: "added"}
 # 카드 안 노선 변화 표 자리. 버튼의 hx-target이 이것을 가리킨다 — 한 화면에 카드는 하나뿐이다
 SLOT_ID = "route-change"
 REPLACED_LEAD = "개편 후에는 →"
+
+# 노선 지도 — 자리와 범례는 카드에, 좌표와 「지도에 없습니다」 줄은 표에 있다. 표가 바뀌면 지도도 바뀐다
+MAP_LEGEND = (
+    "굵은 초록 = 개편 전 · 가는 파랑 = 대체 노선 · 점: 유지 회색 · 경유 제외 빨강 · 경유 추가 파랑"
+)
+MAP_MISSING = "좌표 없는 정류장 {count}곳은 지도에 없습니다"
+GEOMETRY_CLASS = "route-geometry"
 UP_STOPS = "개편 전 상행 정류장"
 DOWN_STOPS = "개편 전 하행 정류장"
 
@@ -69,6 +78,19 @@ def _note_cell(note: Note) -> str:
     return f'<td class="note"{title}>{escape(note.text)}</td>'
 
 
+def _geometry_script(geometry: Geometry) -> str:
+    """지도 좌표를 조각 안에 싣는다. 브라우저 `map.js`가 htmx 뒤에 읽어 그린다 (§7-3 Q6).
+
+    `</` 를 막는 것은 JSON 안의 정류장 이름이 `<script>`를 먼저 닫아 버리는 일을 없애기 위해서다.
+    """
+    body = json.dumps(geometry.data, ensure_ascii=False, separators=(",", ":"))
+    return (
+        f'<script type="application/json" class="{GEOMETRY_CLASS}">'
+        + body.replace("</", "<\\/")
+        + "</script>"
+    )
+
+
 def route_change_table(
     pair: Pair,
     up: list[Line],
@@ -78,11 +100,22 @@ def route_change_table(
     *,
     flipped: bool,
     row_notes: list[Note],
+    geometry: Geometry,
 ) -> str:
-    """노선 변화 표 조각 하나. 제목은 「<번호(방면)> 노선 변화」."""
+    """노선 변화 표 조각 하나. 제목은 「<번호(방면)> 노선 변화」.
+
+    지도 좌표도 여기 실린다 — 표 하나가 지도 하나이므로 카드가 아니라 표에 둔다(§7-3 Q6).
+    좌표 없는 정류장을 알리는 줄도 표마다 값이 달라 여기 있다. 카드는 기본 표를 품으므로
+    카드 조각에도 함께 나오고, 버튼을 눌러 표가 바뀌면 그 줄도 같이 바뀐다.
+    """
     out = [
         f'<section class="route-change" data-before="{escape(pair.before.name)}"'
         f' data-after="{escape(pair.after.name)}">',
+        *(
+            [f'<p class="map-missing">{MAP_MISSING.format(count=geometry.missing)}</p>']
+            if geometry.missing
+            else []
+        ),
         f"<h3>{escape(pair.before.name)} 노선 변화</h3>",
         '<ul class="summary">',
         *_summary("상행", up_counts),
@@ -104,7 +137,12 @@ def route_change_table(
     out += ["</tbody>", "</table>"]
     if flipped:
         out.append(f'<p class="flipped">{FLIPPED_NOTE}</p>')
-    out += [f'<p class="source">{SOURCE_NOTE}</p>', "</section>", ""]
+    out += [
+        f'<p class="source">{SOURCE_NOTE}</p>',
+        _geometry_script(geometry),
+        "</section>",
+        "",
+    ]
     return "\n".join(out)
 
 
@@ -155,9 +193,12 @@ def route_reform_list(rows: list[Row]) -> str:
     ])
 
 
-def index_page(rows: list[Row]) -> str:
-    """껍데기 + 노선 개편 목록 표 = `out/index.html` 한 장."""
-    return shell_page(route_reform_list(rows))
+def index_page(rows: list[Row], kakao_js_key: str = "") -> str:
+    """껍데기 + 노선 개편 목록 표 = `out/index.html` 한 장.
+
+    `kakao_js_key`는 껍데기가 지도 SDK에 박는 값이다 — 리포에 없고 빌드가 환경 변수로 받는다.
+    """
+    return shell_page(route_reform_list(rows), rows, kakao_js_key)
 
 
 def _ends(origin: str, terminus: str) -> str:
@@ -226,6 +267,18 @@ def route_change_card(card: Card, table: str) -> str:
     out.append("</ul>")
     for choice in card.choices:
         out += _choice(choice)
-    out += [f'<div class="route-change-slot" id="{SLOT_ID}">', table.rstrip("\n"), "</div>",
-            "</section>", ""]
+    # 지도 자리는 카드에 하나뿐이다 — 표가 바뀌어도 같은 지도 위에 다시 그린다. 자리는 비워 둔다:
+    # 카드 자체가 htmx로 오므로 이 자리를 보는 사람에게는 이미 스크립트가 돈다. 채우는 것은 `map.js`다.
+    #
+    # 지도와 범례를 한 자리에 묶어 읽어 주는 기계에는 통째로 감춘다. 그림이 말하는 것은 표가 이미
+    # 말하고, 선과 점의 색만 적은 범례는 지도를 못 보는 사람에게는 쓸모가 없다. 다만 좌표 없는
+    # 정류장을 알리는 줄은 표 안에 있어 감춰지지 않는다 — 그것은 그림이 아니라 사실이다.
+    out += [
+        '<div class="route-map-area" aria-hidden="true">',
+        '<div class="route-map"></div>',
+        f'<p class="map-legend">{MAP_LEGEND}</p>',
+        "</div>",
+        f'<div class="route-change-slot" id="{SLOT_ID}">', table.rstrip("\n"), "</div>",
+        "</section>", "",
+    ]
     return "\n".join(out)

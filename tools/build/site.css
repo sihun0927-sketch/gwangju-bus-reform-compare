@@ -11,10 +11,22 @@
   --ink-muted: #5a6b67;
   --accent: #0e6b5c;
   --accent-soft: #398579;
+  /* 지도의 선 색. `map`이 여기서 읽어 간다 — 팔레트가 CSS와 스크립트 두 곳에 살지 않게 */
+  --map-before: #0e6b5c;  /* 개편 전 경로 — 점선 */
+  --map-after: #2563eb;   /* 개편 후 경로 — 실선 */
+  --map-walk: #8a9997;    /* 걷는 구간 — 회색 점선 */
   --worse-bg: #f9ece9;   /* 개편 전에만 지나는 줄 — 경유 제외 */
   --worse-ink: #b2402f;
   --better-bg: #e3f0ed;  /* 개편 후에만 지나는 줄 — 경유 추가 */
   --better-ink: #0e6b5c;
+  /* 노선 지도의 색. `map.js`가 이 값을 읽어 선과 점을 칠하므로 색이 적힌 곳은 여기 하나다.
+     표와 같아야 하는 색은 값을 베끼지 않고 위 토큰을 가리킨다 — 표를 손보면 지도가 따라온다.
+     대체 노선 파랑만 지도에만 있는 색이다(표의 경유 추가는 그대로 초록, §7-3 Q7). */
+  --before-line: var(--accent);
+  --after-line: #1d4ed8;
+  --kept-dot: var(--ink-muted);
+  --dropped-dot: var(--worse-ink);
+  --added-dot: var(--after-line);
   --radius: 12px;
   --gap: 16px;
 }
@@ -85,6 +97,13 @@ h1 { margin: 0 0 8px; font-size: 30px; color: var(--accent); letter-spacing: -0.
 }
 .field input:disabled { color: var(--ink-muted); }
 .field label { color: var(--ink-muted); font-size: 13px; white-space: nowrap; }
+.place-candidate-list { margin: -4px 0 10px; }
+.place-candidates { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.place-candidates li { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.place-candidates li:last-child { border-bottom: 0; }
+.place-candidates li:hover { background: var(--better-bg); }
+.place-candidates strong, .place-candidates span { display: block; }
+.place-candidates span { color: var(--ink-muted); font-size: 13px; }
 
 /* 노선 개편 목록 표 — 첫 화면에 늘 펼쳐져 있다 */
 .route-list h2 { margin: 0 0 8px; font-size: 19px; }
@@ -168,6 +187,32 @@ thead th {
 .choice button:hover { background: var(--better-bg); border-color: var(--accent-soft); }
 .choice button:focus-visible { outline: 2px solid var(--accent-soft); }
 
+/* 노선 지도 — 자리와 범례는 카드에, 좌표와 「지도에 없습니다」 줄은 표에 있다.
+   자리는 `map.js`가 Kakao 지도로 채우므로 안쪽 배치를 바꾸는 속성(flex·grid)을 걸지 않는다 */
+.route-map-area { margin-bottom: 8px; }
+.route-map {
+  position: relative;
+  width: 100%;
+  height: 360px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field-bg);
+  overflow: hidden;
+}
+.map-note {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.map-legend { margin: 0 0 4px; color: var(--ink-muted); font-size: 13px; }
+.map-missing { margin: 0 0 10px; color: var(--worse-ink); font-size: 13px; }
+
 /* 노선 변화 표 */
 .route-change { margin-top: 16px; }
 .route-change h3 { margin: 0 0 10px; font-size: 17px; }
@@ -193,6 +238,72 @@ ul.summary li.added .count { color: var(--better-ink); }
 .stop-diff td.added { background: var(--better-bg); }
 
 .flipped, .source { margin: 10px 0 0; }
+
+/* 장소 탭 — 카드 한 쌍과 그 위의 경로 지도 (CONTEXT 「경로 지도」·「다른 경로 카드」) */
+.journey-map { margin: 0 0 var(--gap); }
+.journey-map .canvas {
+  height: 320px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--field-bg);
+}
+.journey-map .legend { margin: 6px 0 0; color: var(--ink-muted); font-size: 13px; }
+/* 정류장 점. 선 색을 그대로 받아 어느 노선망의 경로인지 알아본다.
+   자리 잡기는 Kakao가 한다 — `CustomOverlay`가 내용을 좌표에 가운데로 놓으므로 여백을 주지 않는다 */
+.map-dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+}
+
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); align-items: start; }
+.journey-card {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.journey-card h3 { margin: 0 0 10px; font-size: 17px; }
+.journey-card .network { color: var(--ink-muted); font-weight: 400; font-size: 14px; }
+.journey-card .status { color: var(--accent); }
+.journey-card ol.legs { margin: 0 0 10px; padding-left: 20px; font-size: 14px; }
+.journey-card .transfer { color: var(--accent-soft); }
+.journey-card .estimated { color: var(--ink-muted); font-size: 12px; }
+ul.metrics { display: flex; flex-wrap: wrap; gap: 6px 10px; list-style: none; margin: 0; padding: 0; }
+ul.metrics li {
+  background: var(--field-bg);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 13px;
+}
+.estimate-note { margin: 10px 0 0; color: var(--ink-muted); font-size: 12px; }
+.notice { margin: 0; color: var(--ink-muted); }
+
+.journey-card button { margin-top: 10px; margin-right: 6px; }
+.show-on-map, .more {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.show-on-map:hover, .more:hover { background: var(--better-bg); border-color: var(--accent-soft); }
+.show-on-map.on { background: var(--accent); border-color: var(--accent); color: #fff; cursor: default; }
+/* 다른 경로가 다 들어오면 더 볼 것이 없다 — 단추를 감춘다(htmx `once`라 다시 부르지도 않는다) */
+.more:has(+ .alternatives article) { display: none; }
+.alternatives:has(article) { margin-top: 10px; display: grid; gap: 10px; }
+.journey-card.alternative { background: var(--panel-bg); }
+
+@media (max-width: 640px) {
+  .compare { grid-template-columns: 1fr; }
+  .journey-map .canvas { height: 240px; }
+}
 
 @media (max-width: 640px) {
   .page { padding: 20px 12px 48px; }

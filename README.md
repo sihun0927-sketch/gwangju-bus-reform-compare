@@ -57,12 +57,42 @@ Worker 코드는 아직 없다(노선번호 탭은 정적 파일만으로 돈다
 대시보드 빌드 설정(리포 밖, 한 번만): 빌드 명령 `python -m tools.build` · 배포 명령 `npx wrangler deploy` · 루트 `/`.
 로컬 확인: `python -m tools.build && npx wrangler deploy --dry-run`.
 
-## 상태 (2026-09-03)
+빌드 환경 변수 `KAKAO_JS_KEY`(Kakao JavaScript 키, ADR-0005)가 있으면 껍데기에 지도 SDK 태그가 들어간다.
+없으면 빌드는 그대로 성공하고 노선 지도 자리에 「지도를 불러오지 못했습니다」 한 줄만 남는다. **키는 리포에
+없다** — Cloudflare 설정에 둔다. 로컬에서 지도를 보려면 `KAKAO_JS_KEY=… python -m tools.build`.
+
+## 빌드와 테스트
+
+```
+python -m tools.build            # data/source → out/ (정적 조각) + worker/data.json (번들 JSON)
+python -m pytest                 # 빌드 검사 — out/의 조각과 번들 JSON을 본다
+npm test                         # Worker 검사 — 빌드를 한 번 돌린 뒤 node --test
+npm run deploy:dry               # wrangler deploy --dry-run
+python tools/measure_direction.py    # 실측 — 기·종점 정렬 단계별 개수 (§6-1)
+python tools/measure_transfers.py    # 실측 — 번들 크기와 환승 표 줄 수 (§6-2)
+node tools/measure_search.mjs        # 실측 — 상태 분포와 요청 시간 (§6-3, 빌드가 먼저다)
+```
+
+`out/`과 `worker/data.json`은 빌드 산출물이라 저장소에 없다. **배포도 테스트도 빌드가 먼저다.**
+
+## 상태 (2026-09-04)
 
 **노선번호 탭이 정적 파일로 돈다.** `python -m tools.build`가 `out/`에 껍데기 `index.html` 한 장(노선 개편 목록 표 103줄)과
 노선 변화 카드 103개 · 노선 변화 표 205개를 쓴다. `out/`을 정적 서버로 열면 목록의 한 줄을 눌러 카드를,
 카드의 버튼을 눌러 표를 새로고침 없이 바꿀 수 있다 — Worker도 D1도 없이(ADR-0001·0002).
-장소 탭은 아직 입력칸 자리만 있다. 설계는 2026-09-03에 닫혔다 — `docs/architecture.md` §7 표와 ADR-0008.
+표 조각마다 상행 좌표가 실려 있어 카드 위 노선 지도가 개편 전(굵은 초록)과 대체 노선(가는 파랑)을 겹쳐 그린다 —
+그리는 브라우저 코드는 `out/map.js` 하나뿐이고, Kakao JS 키가 있는 환경에서만 뜬다(ADR-0005).
+
+**장소 탭의 `/compare`가 직행과 환승 1~2회까지 답한다.** 같은 빌드가 `worker/data.json`도 쓴다 —
+ADR-0008이 정한 표 **다섯이 다 들어갔다**: 정류장 4,803줄(`stops.csv` 4,746 + 추정 좌표 57) ·
+노선 230(개편 전 111 + 개편 후 119) · 노선별 정류장 42,390줄 · 환승 쌍 6,566줄 ·
+노선 쌍별 환승 지점 7,250줄, 압축 전 2.02MB(gzip 0.28MB). 좌표 둘을 주면
+`GET /compare?from=lat,lng&to=lat,lng`가 개편 전 카드와 개편 후 카드 한 쌍을 돌려주고, 머리에
+「직행 · 환승 1회 · 환승 2회 · 경로 없음」이 선다. 환승 줄에는 내리는 곳 → 타는 곳과 환승 도보가 있다.
+아직 「준비 중」인 것은 `/places`와 `/journey/…`이고, 화면의 입력칸도 아직 자리뿐이다.
+남은 실측 하나는 요청당 CPU다 — 지금은 중앙값 32~36ms로 무료 요금제 상한 10ms를 크게 넘는다
+(`docs/architecture.md` §6-3 · §8).
+설계는 2026-09-03에 닫혔다 — `docs/architecture.md` §7 표와 ADR-0008.
 
 번호 잇기 규칙은 ADR-0006으로 닫혔고 못 찾는 쌍 0이다. 정류장 좌표도 들어왔다 —
 `data/source/stops.csv` 4,746개, 결측 0(ADR-0007). 다음 단계는 `docs/architecture.md` §9 「다음 할 일」.
