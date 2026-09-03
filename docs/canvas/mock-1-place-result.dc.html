@@ -1,0 +1,232 @@
+<meta charset="utf-8">
+<title>화면 목업 · 장소로 찾기 (결과 상태)</title>
+<link rel="stylesheet" href="canvas.css">
+<style>
+  .artboard { width: 1000px; background: #f7f9f9; }
+  .strip {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+  .strip b { color: var(--ink); font-size: 12.5px; }
+  .strip .box { display: inline-block; width: 22px; height: 12px; border: 1px solid var(--ink-faint); border-radius: 4px; vertical-align: -1px; }
+  .strip .box.dyn { border: 2px dashed var(--teal); }
+
+  .panel { position: relative; border-radius: 12px; background: var(--paper); padding: 20px 22px; }
+  .panel.static { border: 1px solid var(--line); }
+  .panel.dyn { border: 2px dashed var(--teal); background: #fbfdfd; margin-top: 18px; }
+  .tag {
+    position: absolute;
+    top: -11px;
+    right: 14px;
+    padding: 2px 10px;
+    border-radius: 11px;
+    font-size: 10.5px;
+    font-weight: 700;
+    background: var(--ink);
+    color: #fff;
+    white-space: nowrap;
+  }
+  .panel.dyn > .tag { background: var(--teal); }
+  .tag code { color: #cfeae4; font-size: 10.5px; }
+
+  h2.brand { margin: 0; font-size: 26px; color: var(--teal); letter-spacing: -0.02em; }
+  p.lede { margin: 6px 0 14px; color: var(--ink-soft); font-size: 12.5px; }
+  .tabbar { display: flex; gap: 20px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+  .tabbar span { padding-bottom: 7px; font-size: 13px; color: var(--ink-faint); }
+  .tabbar span.on { color: var(--ink); font-weight: 700; border-bottom: 2px solid var(--teal); }
+
+  .input {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+  .input .dot { color: var(--teal); margin-right: 6px; }
+  .input .side { color: var(--ink-faint); font-size: 11px; }
+
+  .cands { border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+  .cands div {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .cands div:last-child { border-bottom: none; }
+  .cands div.on { background: var(--teal-soft); }
+  .cands span { color: var(--ink-faint); font-size: 11px; }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .jcard { border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; background: var(--paper); }
+  .jcard .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 9px; }
+  .jcard .net { font-size: 12px; font-weight: 700; background: var(--band); border-radius: 5px; padding: 2px 8px; }
+  .jcard .status { font-size: 13px; font-weight: 700; color: var(--teal); }
+
+  ol.legs { margin: 0; padding: 0 0 0 14px; list-style: none; border-left: 2px solid var(--line); }
+  ol.legs li { position: relative; font-size: 12px; padding: 2px 0; color: var(--ink-soft); }
+  ol.legs li b { color: var(--ink); }
+  ol.legs li.stop::before {
+    content: "";
+    position: absolute;
+    left: -19px;
+    top: 7px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid var(--teal);
+  }
+  ol.legs li.walk { color: var(--ink-faint); font-size: 11.5px; }
+  ol.legs li.ride .route { font-weight: 700; color: var(--ink); }
+  ol.legs li.xfer { color: var(--orange); font-size: 11.5px; }
+
+  ul.metrics { margin: 10px 0 0; padding: 9px 0 0; list-style: none; border-top: 1px dashed var(--line); }
+  ul.metrics li { display: flex; justify-content: space-between; font-size: 12px; padding: 1.5px 0; color: var(--ink-soft); }
+  ul.metrics li b { color: var(--ink); }
+
+  .btn {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    background: var(--paper);
+  }
+  .btn.on { background: var(--teal-soft); border-color: #a9d2c9; color: var(--teal); font-weight: 600; }
+
+  .more-slot { position: relative; border: 2px dashed var(--teal); border-radius: 8px; padding: 9px 10px; margin-top: 14px; }
+  .more-slot .tag { top: -10px; right: 8px; font-size: 9.5px; padding: 1px 8px; background: var(--teal); }
+
+  .note-line { font-size: 11.5px; color: var(--ink-faint); margin: 8px 0 0; }
+</style>
+
+<div class="artboard">
+  <div class="strip">
+    <b>결과 상태 — 동적 조각이 채워진 뒤</b>
+    <span><i class="box"></i> 정적</span>
+    <span><i class="box dyn"></i> 동적 · htmx가 서버 조각을 그 자리에 끼움</span>
+    <span>카드 머리에 <b>상태</b>가 선다 — 판정 문장은 없다(§7 Q11)</span>
+  </div>
+
+  <div class="panel static">
+    <div class="tag">① 정적 · 페이지 껍데기</div>
+    <h2 class="brand">버스개편 비교</h2>
+    <p class="lede">2026년 10월 광주 시내버스 노선 개편 전후로 내 경로가 어떻게 달라지는지 비교합니다.</p>
+    <div class="tabbar"><span class="on">장소로 찾기</span><span>노선번호로 찾기</span></div>
+
+    <div class="input"><span><i class="dot">●</i><b>전남대</b></span><span class="side">출발</span></div>
+
+    <div class="panel dyn" style="margin-top:14px; padding:14px;">
+      <div class="tag">④ 동적 · <code>GET /places?q=전남대</code> → 후보 목록 조각</div>
+      <div class="cands">
+        <div class="on"><span>전남대</span><span>광주 북구 용봉동</span></div>
+        <div><span>전남대학교병원</span><span>광주 동구 학동</span></div>
+        <div><span>전남대 후문</span><span>광주 북구 용봉동</span></div>
+      </div>
+      <p class="note-line">Worker가 Kakao 로컬 REST를 대신 부른다. 키는 Worker 환경 변수에만 있다.
+        실제 화면에서는 입력칸 아래에 겹쳐 뜬다.</p>
+    </div>
+
+    <div class="input" style="margin-top:14px;"><span><i class="dot">●</i><b>광주송정역</b></span><span class="side">도착</span></div>
+    <p class="note-line">장소나 주소를 입력하면 그 지점의 좌표로 비교합니다. 타고 내릴 정류장은 도보권(500m) 안에서 경로 엔진이 고릅니다.</p>
+  </div>
+
+  <div class="panel dyn">
+    <div class="tag">⑤ 동적 · <code>GET /compare?from=&amp;to=</code> → 개편 전 카드 / 개편 후 카드</div>
+    <div class="pair">
+      <div class="jcard">
+        <div class="head"><span class="net">개편 전</span><span class="status">환승 1회</span></div>
+        <ol class="legs">
+          <li class="walk">출발 지점에서 455m 걷기</li>
+          <li class="stop">승차 <b>북구보건소</b></li>
+          <li class="ride"><span class="route">두암81(각화초교.장등마을)</span> 타고 3개 정류장</li>
+          <li class="stop">하차 <b>광주역</b></li>
+          <li class="xfer"><b>광주역</b>에서 환승 · 같은 정류장</li>
+          <li class="stop">승차 <b>광주역</b></li>
+          <li class="ride"><span class="route">좌석02</span> 타고 17개 정류장</li>
+          <li class="stop">하차 <b>광주송정역</b></li>
+          <li class="walk">151m 걸어 도착 지점</li>
+        </ol>
+        <ul class="metrics">
+          <li>예상 시간 <b>16분</b></li>
+          <li>환승 <b>1회</b></li>
+          <li>정류장 <b>20곳</b></li>
+          <li>도보 합계 <b>606m</b></li>
+          <li>배차간격 <b>정보 없음</b></li>
+        </ul>
+        <span class="btn on">지도에 표시</span>
+        <div class="more-slot">
+          <div class="tag">⑥ <code>GET /journey/{경로 키}</code></div>
+          <span class="btn">다른 경로 더 보기 (2) ▸</span>
+        </div>
+      </div>
+
+      <div class="jcard">
+        <div class="head"><span class="net">개편 후</span><span class="status">환승 2회</span></div>
+        <ol class="legs">
+          <li class="walk">출발 지점에서 455m 걷기</li>
+          <li class="stop">승차 <b>북구보건소</b></li>
+          <li class="ride"><span class="route">지선43</span> 타고 2개 정류장</li>
+          <li class="stop">하차 <b>연제외촌입구</b></li>
+          <li class="xfer"><b>연제외촌입구</b>에서 환승 · 같은 정류장</li>
+          <li class="stop">승차 <b>연제외촌입구</b></li>
+          <li class="ride"><span class="route">지선82</span> 타고 3개 정류장</li>
+          <li class="stop">하차 <b>한국은행</b></li>
+          <li class="xfer"><b>한국은행</b>에서 환승 · 같은 정류장</li>
+          <li class="stop">승차 <b>한국은행</b></li>
+          <li class="ride"><span class="route">간선45</span> 타고 11개 정류장</li>
+          <li class="stop">하차 <b>광산구청</b></li>
+          <li class="walk">204m 걸어 도착 지점</li>
+        </ol>
+        <ul class="metrics">
+          <li>예상 시간 <b>15분</b></li>
+          <li>환승 <b>2회</b></li>
+          <li>정류장 <b>16곳</b></li>
+          <li>도보 합계 <b>659m</b></li>
+          <li>배차간격 <b>정보 없음</b></li>
+        </ul>
+        <span class="btn">지도에 표시</span>
+        <div class="more-slot">
+          <div class="tag">⑥ <code>GET /journey/{경로 키}</code></div>
+          <span class="btn">다른 경로 더 보기 (2) ▸</span>
+        </div>
+      </div>
+    </div>
+    <p class="note-line">예상 시간은 정류장당 20초와 걷는 속도 4km/h로 잡은 추정치입니다. 배차 대기는 넣지 않았습니다.</p>
+    <p class="note-line">개편 후 노선은 광주송정역에 서지 않아 광산구청에서 내려 204m 걷습니다 — 두 카드의 도착 정류장은 다를 수 있습니다.</p>
+  </div>
+
+  <div class="panel dyn">
+    <div class="tag">⑤ 안 · 경로 지도 좌표 조각 → 선 긋기는 Kakao JS (브라우저)</div>
+    <div style="height:230px; background:var(--band); border-radius:8px; position:relative;">
+      <svg width="100%" height="230" viewBox="0 0 900 230">
+        <path d="M70 190 C 220 186, 300 120, 430 104" fill="none" stroke="#5c6b68" stroke-width="3.5" stroke-dasharray="9 6"/>
+        <path d="M430 104 C 560 92, 700 66, 830 44" fill="none" stroke="#5c6b68" stroke-width="3.5" stroke-dasharray="9 6"/>
+        <path d="M70 190 C 240 204, 360 150, 500 128 C 640 106, 730 74, 806 60" fill="none" stroke="#0e6b5c" stroke-width="3.5"/>
+        <path d="M806 60 L 830 44" fill="none" stroke="#9aa5a2" stroke-width="2.5" stroke-dasharray="4 4"/>
+        <circle cx="70" cy="190" r="7" fill="#fff" stroke="#0e6b5c" stroke-width="3"/>
+        <circle cx="430" cy="104" r="5" fill="#fff" stroke="#5c6b68" stroke-width="2.5"/>
+        <circle cx="500" cy="128" r="4" fill="#0e6b5c"/>
+        <circle cx="806" cy="60" r="5" fill="#fff" stroke="#0e6b5c" stroke-width="2.5"/>
+        <circle cx="830" cy="44" r="7" fill="#fff" stroke="#0e6b5c" stroke-width="3"/>
+        <text x="356" y="168" font-size="13" fill="#7c8f8a" font-family="sans-serif">지도 타일 (Kakao SDK, 브라우저에서 그림)</text>
+      </svg>
+    </div>
+    <p class="note-line">
+      <b style="color:#5c6b68;">- -</b> 개편 전 경로 &nbsp;
+      <b style="color:var(--teal);">—</b> 개편 후 경로 &nbsp;
+      <b style="color:#9aa5a2;">- -</b> 걷는 구간 &nbsp;
+      큰 점은 두 지점, 가운데 점은 환승하는 곳입니다.
+    </p>
+    <p class="note-line">카드마다 「지도에 표시」가 있고, 누른 카드의 경로가 이 한 자리에 그려집니다.</p>
+  </div>
+</div>
