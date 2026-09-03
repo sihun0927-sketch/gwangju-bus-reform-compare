@@ -470,6 +470,36 @@ def test_목록_줄은_눌리는_것으로_읽히고_끼운_자리를_보여_준
     assert 'aria-label="두암181 — 대체 노선 없음"' in list_row(index(site), "두암181")
 
 
+def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조각을_부른다(site: Path) -> None:
+    """자동완성 후보는 <datalist> 103개 — 값은 번호, 설명은 대체 노선(§7-3 Q1·Q2)."""
+    html = index(site)
+    입력칸 = re.search(r'<input id="number"[^>]*>', html)
+    assert 입력칸, "노선번호 입력칸을 못 찾았습니다"
+    칸 = 입력칸.group(0)
+    assert "disabled" not in 칸
+    assert 'list="route-numbers"' in 칸 and 'name="number"' in 칸
+    assert 'hx-ext="path-params"' in 칸 and 'hx-get="route/{number}.html"' in 칸
+    assert 'hx-target="#result"' in 칸 and 'hx-trigger="change"' in 칸
+    후보 = re.findall(r'<option value="([^"]*)" label="([^"]*)">', html)
+    assert len(후보) == 103
+    assert ("문흥18", "간선18 · 지선10") in 후보
+    assert ("지원152", "급행1003 · 228") in 후보
+    assert ("두암181", "대체 노선 없음") in 후보
+    # 후보 순서는 목록 표 순서 그대로다 — 같은 번호를 두 곳이 다르게 적는 일이 없다
+    번호 = [re.search(r"route/(.*?)\.html", 줄).group(1) for 줄 in list_rows(html)]
+    assert [값 for 값, _ in 후보] == 번호
+
+
+def test_껍데기의_스크립트는_htmx와_path_params_확장_둘뿐이다(site: Path) -> None:
+    """확장은 htmx 뒤에 와야 켜진다. 우리가 쓴 스크립트는 없다(§7-3 Q1)."""
+    태그 = re.findall(r"<script\b[^>]*>", index(site))
+    assert len(태그) == 2
+    htmx태그, 확장태그 = 태그
+    assert "htmx.org" in htmx태그
+    assert "htmx-ext-path-params" in 확장태그
+    assert 'integrity="sha384-' in 확장태그   # CDN이 다른 파일을 내주면 아예 싣지 않는다
+
+
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
     html = index(site)
     문흥18줄 = list_row(html, "문흥18")
@@ -480,7 +510,8 @@ def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
 
 
 def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
-    주소 = re.findall(r'hx-get="([^"]+)"', index(site))
+    # 입력칸의 `route/{number}.html`은 틀이라 뺀다 — 값이 들어가야 주소가 된다
+    주소 = [u for u in re.findall(r'hx-get="([^"]+)"', index(site)) if "{" not in u]
     assert len(주소) == 103
     for url in 주소:
         assert (site / url).exists(), url

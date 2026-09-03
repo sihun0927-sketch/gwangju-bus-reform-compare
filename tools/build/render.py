@@ -157,7 +157,7 @@ def route_reform_list(rows: list[Row]) -> str:
 
 def index_page(rows: list[Row]) -> str:
     """껍데기 + 노선 개편 목록 표 = `out/index.html` 한 장."""
-    return shell_page(route_reform_list(rows))
+    return shell_page(route_reform_list(rows), rows)
 
 
 def _ends(origin: str, terminus: str) -> str:
