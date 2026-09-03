@@ -103,8 +103,9 @@ def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = N
     # 카드는 `out/`을 지우기 전에 다 만들어 본다 — 입력이 틀리면 반쯤 쓰다 만 자리를 남기지 않는다
     cards = [route_card.card(row, before_siblings.get(row.before, []), after) for row in replacements]
 
-    if not shell.CSS_SOURCE.exists():
-        raise BuildError(f"화면 CSS가 없습니다: {shell.CSS_SOURCE}")
+    for asset in (shell.CSS_SOURCE, shell.PLACE_JS_SOURCE):
+        if not asset.exists():
+            raise BuildError(f"화면 자산이 없습니다: {asset}")
 
     _clear(out, source)
     stages: dict[str, int] = {}
@@ -123,6 +124,7 @@ def build(source: Path, out: Path, bundle: Path, *, align_table: Path | None = N
 
     _write(out / "index.html", render.index_page(route_list.rows(cards)))
     shutil.copyfile(shell.CSS_SOURCE, out / shell.CSS)
+    shutil.copyfile(shell.PLACE_JS_SOURCE, out / shell.PLACE_JS)
 
     written = bundle_json.write(bundle_path, made)
 

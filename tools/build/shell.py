@@ -1,10 +1,11 @@
 """껍데기 — 두 탭 공용 `index.html` 한 장 (CONTEXT 「껍데기」).
 
-데이터와 무관한 부분만 여기 산다. 제목·탭 둘·입력칸·안내문·빈 결과 영역, htmx와 CSS 부르기.
+데이터와 무관한 부분만 여기 산다. 제목·탭 둘·입력칸·안내문·빈 결과 영역, htmx와 CSS·브라우저 조각 스크립트 부르기.
 노선 개편 목록 표는 데이터에서 나오므로 밖에서 받아 자리에 끼운다.
 
-탭 전환은 숨긴 라디오 단추와 CSS만으로 한다 — 이 탭은 Worker도 우리 스크립트도 없이 돈다(ADR-0001).
-아직 못 하는 일을 하는 척하지 않는다: 두 입력칸은 `disabled`이고 안내문이 그 까닭을 적는다.
+탭 전환은 숨긴 라디오 단추와 CSS만으로 한다. 장소 탭 입력칸은 htmx로 Worker의 자동완성 조각을 받고,
+브라우저 스크립트가 고른 출발·도착 좌표를 `/compare`에 보낸다(ADR-0001).
+노선번호 탭은 아직 못 하는 일을 하는 척하지 않는다: 입력칸이 `disabled`이고 안내문이 그 까닭을 적는다.
 번호로 좁히기(자동완성·표 필터)는 architecture §8에서 아직 미결이다.
 """
 from __future__ import annotations
@@ -18,10 +19,6 @@ PLACE_TAB = "장소로 찾기"
 ROUTE_TAB = "노선번호로 찾기"
 PLACE_PLACEHOLDER = "장소나 주소 입력 (예: 전남대)"
 PLACE_FIELDS = (("from", "출발"), ("to", "도착"))
-PLACE_HINT = (
-    "장소로 찾기는 아직 준비 중입니다."
-    " 장소나 주소를 넣으면 그 지점의 좌표로 개편 전후 경로를 비교할 자리입니다."
-)
 ROUTE_PLACEHOLDER = "노선번호 입력 (예: 지원152)"
 ROUTE_FIELD = ("number", "노선번호")
 ROUTE_HINT = "번호로 좁히기는 아직 준비 중입니다. 아래 목록에서 노선을 고르세요."
@@ -32,28 +29,44 @@ RESULT_EMPTY = "한 줄을 누르면 대체 노선과 정류장 변화가 여기
 
 CSS = "site.css"
 CSS_SOURCE = Path(__file__).resolve().parent / CSS
+PLACE_JS = "place.js"
+PLACE_JS_SOURCE = Path(__file__).resolve().parent / PLACE_JS
 # CDN 스크립트 태그 하나. 우리가 쓰는 것은 hx-get · hx-target · hx-swap · hx-trigger 넷뿐이다(ADR-0001)
 HTMX = "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
 # CDN이 다른 파일을 내주면 브라우저가 아예 싣지 않는다. 위 주소를 받아 sha384로 잰 값이다
 HTMX_SRI = "sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
 
 
-def _field(field_id: str, label: str, placeholder: str) -> list[str]:
-    return [
+def _field(
+    field_id: str, label: str, placeholder: str, attrs: str = " disabled", *, places: bool = False
+) -> list[str]:
+    field = [
         '<div class="field">',
-        f'<input id="{field_id}" type="text" placeholder="{placeholder}" disabled>',
+        f'<input id="{field_id}" type="text" placeholder="{placeholder}"{attrs}>',
         f'<label for="{field_id}">{label}</label>',
         "</div>",
     ]
+    if places:
+        field.append(f'<div class="place-candidate-list" id="{field_id}-candidates"></div>')
+    return field
 
 
 def _place_panel() -> list[str]:
     return [
         '<section class="panel place">',
         '<div class="card">',
-        *[c for f, l in PLACE_FIELDS for c in _field(f, l, PLACE_PLACEHOLDER)],
-        f'<p class="hint">{PLACE_HINT}</p>',
+        *[
+            c
+            for f, l in PLACE_FIELDS
+            for c in _field(
+                f, l, PLACE_PLACEHOLDER,
+                f' name="q" hx-get="/places" hx-trigger="keyup changed delay:250ms"'
+                f' hx-target="#{f}-candidates" autocomplete="off"',
+                places=True,
+            )
+        ],
         "</div>",
+        '<div class="result" id="place-result"></div>',
         "</section>",
     ]
 
@@ -86,6 +99,7 @@ def page(route_list: str) -> str:
         f"<title>{TITLE}</title>",
         f'<link rel="stylesheet" href="{CSS}">',
         f'<script src="{HTMX}" integrity="{HTMX_SRI}" crossorigin="anonymous" defer></script>',
+        f'<script src="{PLACE_JS}" defer></script>',
         "</head>",
         "<body>",
         '<main class="page">',
