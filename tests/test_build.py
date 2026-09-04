@@ -580,6 +580,40 @@ def test_지도_스크립트는_좌표_배열만_받는다(site: Path) -> None:
     assert "function route(geometry)" in script
 
 
+def test_첫_화면은_장소_탭이다(site: Path) -> None:
+    """시민이 먼저 묻는 것은 「내 길이 어떻게 달라지나」다(2026-09-04)."""
+    html = index(site)
+    assert 'id="tab-place" class="tab-toggle" checked' in html
+    assert 'id="tab-route" class="tab-toggle">' in html
+
+
+def test_예시_검색_셋이_실제_정류장_자리를_가리킨다(site: Path) -> None:
+    """예시는 첫 화면에서 눌러 볼 것을 준다. 좌표는 지어내지 않는다(ADR-0007).
+
+    이름은 시민이 부르는 말이고(「유스퀘어」·「첨단지구」) 좌표는 `stops.csv`에 실제로 있는 줄이다.
+    둘이 정확히 같은 곳을 가리킬 필요는 없다 — 장소 탭은 좌표로 비교하고, 타고 내릴 정류장은
+    도보권 안에서 엔진이 고른다.
+    """
+    html = index(site)
+    단추 = re.findall(
+        r'<button type="button" class="example" data-from="([^"]+)" data-from-name="([^"]+)"'
+        r' data-to="([^"]+)" data-to-name="([^"]+)">([^<]+)</button>',
+        html,
+    )
+    assert [b[4] for b in 단추] == [
+        "유스퀘어 → 전남대",
+        "금남로4가역 → 첨단지구",
+        "조선대 → 수완지구",
+    ]
+
+    자리 = {
+        (r["LATITUDE"], r["LONGITUDE"])
+        for r in csv.DictReader(io.open(SOURCE / "stops.csv", encoding="utf-8-sig"))
+    }
+    for 프롬, _, 투, _, 이름 in 단추:
+        for 점 in (프롬, 투):
+            assert tuple(점.split(",")) in 자리, f"{이름}의 {점}이 stops.csv에 없다"
+
 def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
     html = index(site)
     문흥18줄 = list_row(html, "문흥18")
