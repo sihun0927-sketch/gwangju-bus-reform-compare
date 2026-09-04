@@ -40,6 +40,11 @@ REPLACED_LEAD = "개편 후에는 →"
 MAP_LEGEND = (
     "굵은 초록 = 개편 전 · 가는 파랑 = 대체 노선 · 점: 유지 회색 · 경유 제외 빨강 · 경유 추가 파랑"
 )
+# 선이 무엇인지 밝히는 한 줄 (ADR-0009 결정 1). 점은 사실이고 선은 우리가 낸 추정이다 —
+# 시가 공표한 것은 정류장의 **순서**뿐이라 버스가 그 길로 다니는지는 아무도 모른다
+MAP_ESTIMATE = (
+    "선은 정류장을 순서대로 이은 차도 경로입니다. 실제 운행 경로와 다를 수 있습니다."
+)
 MAP_MISSING = "좌표 없는 정류장 {count}곳은 지도에 없습니다"
 GEOMETRY_CLASS = "route-geometry"
 UP_STOPS = "개편 전 상행 정류장"
@@ -297,6 +302,7 @@ def route_change_card(card: Card, table: str) -> str:
         '<div class="route-map-area" aria-hidden="true">',
         '<div class="route-map"></div>',
         f'<p class="map-legend">{MAP_LEGEND}</p>',
+        f'<p class="map-legend">{MAP_ESTIMATE}</p>',
         "</div>",
         f'<div class="route-change-slot" id="{SLOT_ID}">', table.rstrip("\n"), "</div>",
         "</section>", "",
