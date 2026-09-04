@@ -4,7 +4,7 @@
 
 CSV 아홉과 형상 JSON 하나다. 여섯은 시가 공표한 원본(2026-09-02 반입, UTF-8 BOM)이고,
 `stops.csv`는 광주 BIS API에서 받아 만든 것이며(2026-09-03, ADR-0007),
-`route_headways_with_stops.csv`는 개편 전 배차간격이고(2026-09-04 반입, 아래 절),
+`route_headways_with_stops.csv(안 읽는다 — 배차간격의 원천은 `route_headways.csv` 하나다)`는 개편 전 배차간격이고(2026-09-04 반입, 아래 절),
 `route_headways.csv`는 **공공데이터 API**에서 받은 같은 성격의 자료이며(2026-09-04 반입, ADR-0010),
 `route_shapes.json`은 OSRM이 낸 것이다(2026-09-04, ADR-0009 · 아래 절). **손으로 고치지 않는다.**
 빌드 스크립트는 읽기만 한다 — 스크립트가 만드는 둘도 `tools/build_stops.py`·`tools/build_shapes.py`가
@@ -22,7 +22,7 @@ CSV 아홉과 형상 JSON 하나다. 여섯은 시가 공표한 원본(2026-09-0
 | `신설 정류소.csv` | 68 | 구분 · 정류소 | 비고 "신설 정류소", 좌표 채우기 대상(ADR-0004) |
 | `통폐합이전정류소.csv` | 16 | 지역 · 구분 · 정류소명 · ID · 통폐합사유 | 비고 "폐지/통폐합/이전 · 사유" |
 | `stops.csv` | 4,746 | STATION_NUM · BUSSTOP_NAME · ARS_ID · NEXT_BUSSTOP · BUSSTOP_ID · LONGITUDE · NAME_E · LATITUDE | 노선 지도 좌표, 번들 stops 표. **시 공표 아님** — 광주 BIS API(ADR-0007) |
-| `route_headways_with_stops.csv` | 110 | route_name · headway_minutes · 상행 정류장(순서대로) · 하행 정류장(순서대로) | 번들 routes의 `headway`, 장소 탭 경로 줄의 「배차간격 N분」. **개편 전만** (아래 절) |
+| `route_headways_with_stops.csv(안 읽는다 — 배차간격의 원천은 `route_headways.csv` 하나다)` | 110 | route_name · headway_minutes · 상행 정류장(순서대로) · 하행 정류장(순서대로) | 번들 routes의 `headway`, 장소 탭 경로 줄의 「배차간격 N분」. **개편 전만** (아래 절) |
 | `route_headways.csv` | 120 | route_name · headway_minutes | 개편 전 배차간격, 유효 운행시간 보정, 개편 후 배차간격 추정(ADR-0010). **시 공표 아님** — 공공데이터 API |
 
 ## 알아 둘 함정
@@ -60,7 +60,7 @@ CSV 아홉과 형상 JSON 하나다. 여섯은 시가 공표한 원본(2026-09-0
 - **`routes_with_stop_names.csv`는 안 들인다.** 노선 열과
   `BUSSTOP_NAME` 열이 **같은 행에서 서로 다른 것을 말한다**(노선 111개가 4,746줄에 되풀이되고 이름 열은
   정류장 전체 목록이다 — 표 계산기에서 열을 나란히 붙인 자국이다). 같은 묶음의
-  `route_headways_with_stops.csv`는 **들어와 있다** — 정류장 열은 노선안과 겹치지만 배차간격 열을
+  `route_headways_with_stops.csv(안 읽는다 — 배차간격의 원천은 `route_headways.csv` 하나다)`는 **들어와 있다** — 정류장 열은 노선안과 겹치지만 배차간격 열을
   장소 탭이 쓴다(위 「배차간격 원천이 둘이다」).
 
 ## 정류장 좌표 — 광주 BIS API (ADR-0007)
@@ -149,7 +149,7 @@ python tools/build_shapes.py
 
 ## 배차간격 — 개편 전만 (2026-09-04 반입)
 
-`source/route_headways_with_stops.csv` 110행. 장소 탭 카드의 경로 줄이 「배차간격 12분」이라 적는 값이다
+`source/route_headways_with_stops.csv(안 읽는다 — 배차간격의 원천은 `route_headways.csv` 하나다)` 110행. 장소 탭 카드의 경로 줄이 「배차간격 12분」이라 적는 값이다
 (CONTEXT 「경로 줄」). 빌드는 `route_name`과 `headway_minutes` **두 열만** 읽는다 — 뒤 두 열의 정류장
 목록은 노선안 CSV와 겹치는 값이라 쓰지 않고, 이 파일이 어느 노선을 말하는지 눈으로 대조할 때만 쓴다.
 
@@ -192,7 +192,7 @@ python tools/build_shapes.py
 
 | 파일 | 행 | 무엇이 있나 | 읽는 곳 | 쓰는 곳 |
 |---|---|---|---|---|
-| `route_headways_with_stops.csv` | 110 | 개편 전만. **순환01이 없다** | `load.read_headways` | 번들 → 경로 줄 |
+| `route_headways_with_stops.csv(안 읽는다 — 배차간격의 원천은 `route_headways.csv` 하나다)` | 110 | 개편 전만. **순환01이 없다** | `load.read_headways` | 번들 → 경로 줄 |
 | `route_headways.csv` | 120 | 개편 전 111행을 다 덮는다(순환01A·B) + 마을버스 7 | `headway.read_headways` | 배차간격 추정(ADR-0010) |
 
 **합치면 뒤엣것이 앞엣것을 덮는다.** 추정은 유효 운행시간을 풀려고 111행을 다 알아야 해서 앞엣것을
