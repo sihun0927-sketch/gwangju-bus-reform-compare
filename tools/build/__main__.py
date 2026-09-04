@@ -53,6 +53,13 @@ def main(argv: list[str]) -> int:
         f" · 환승 쌍 {번들.transfers}줄 · 노선 쌍 환승 지점 {번들.route_links}줄"
         f" · {result.bundle_bytes / 1024 / 1024:.2f}MB를 {result.bundle}에 썼습니다."
     )
+    수지 = result.estimate.network
+    print(
+        f"배차간격 추정 — 개편 후 노선 {수지.after_routes}개"
+        f" · 중앙 배차 {수지.before_headway:.1f} → {수지.after_headway:.1f}분"
+        f" · 증차 없이 필요한 표정속도 상승 {수지.speed_gain:.1f}%"
+        f"(시가 밝힌 통행시간 단축 {수지.claimed_gain:.1f}%)"
+    )
     return 0
 
 

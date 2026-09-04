@@ -12,7 +12,8 @@
     "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "none",
-    // 여기 적힌 것만 Worker 코드가 받는다. 노선번호 탭 조각은 전과 똑같이 정적 자산으로 나간다
-    "run_worker_first": ["/places*", "/compare*", "/journey/*"]
+    // 여기 적힌 것만 Worker 코드가 받는다. 노선번호 탭 조각은 전과 똑같이 정적 자산으로 나간다.
+    // `/headway`만 조각이 아니라 JSON이다(ADR-0009) — `out/headway.json`으로도 같은 자료가 나간다
+    "run_worker_first": ["/places*", "/compare*", "/journey/*", "/headway", "/headway/*"]
   }
 }
