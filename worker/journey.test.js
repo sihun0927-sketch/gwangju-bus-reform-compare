@@ -27,9 +27,16 @@ async function 비교(from = 전남대, to = 광주송정역) {
   return await 응답.text();
 }
 
-/** 조각에서 노선망 하나의 카드만 떼어 낸다. */
+/**
+ * 조각에서 노선망 하나의 카드만 떼어 낸다.
+ *
+ * 「다른 경로 더 보기」는 카드 **밖**에 선다(격자 둘째 줄) — 같은 노선망의 것이라 함께 뗀다.
+ */
 function 카드(글, 노선망) {
-  const 자리 = new RegExp(`<article[^>]*data-network="${노선망}"[^]*?</article>`);
+  const 자리 = new RegExp(
+    `<article[^>]*data-network="${노선망}"[^]*?</article>`
+    + `(?:<details[^>]*data-network="${노선망}"[^]*?</details>)?`,
+  );
   return (글.match(자리) ?? [""])[0];
 }
 
@@ -41,12 +48,25 @@ const 좌표 = (글) =>
   [...글.matchAll(/<script type="application\/json" class="geometry">([^]*?)<\/script>/g)]
     .map((m) => JSON.parse(m[1]));
 
-/** 지표 줄에서 「노선 …」 한 줄. 노선 조합을 견줄 때 쓴다. */
-const 노선_줄 = (글) => (글.match(/<li>노선 ([^<]*)<\/li>/) ?? [])[1];
+/**
+ * 경로 줄에 실린 노선 이름을 차례대로 이은 것. 노선 조합을 견줄 때 쓴다 (CONTEXT 「경로 줄」).
+ *
+ * 노선은 지표 표가 아니라 경로 줄의 그 노선 자리에 칩으로 적힌다. 조합이 없으면 `undefined`라야
+ * 「둘 다 못 읽어서 같다」가 통과하지 않는다.
+ */
+const 노선_줄 = (글) =>
+  [...글.matchAll(/<b class="chip">([^<]*)<\/b>/g)].map((m) => m[1]).join(" · ") || undefined;
 
-/** 카드에 적힌 승차·하차 정류장을 차례대로. */
+/** 지표 표에서 한 줄의 값 — `<dt>예상 시간</dt><dd>7분</dd>` (CONTEXT 「지표」). */
+const 지표 = (글, 이름) => (글.match(new RegExp(`<dt>${이름}</dt><dd>([^<]*)</dd>`)) ?? [])[1];
+
+/** 카드에 적힌 승차·하차 정류장을 차례대로. 「추정 위치」 표시가 붙어도 이름을 읽는다. */
 const 정류장_목록 = (글) =>
-  [...글.matchAll(/<li>(승차|하차) <b>([^<]*)<\/b>/g)].map((m) => `${m[1]} ${m[2]}`);
+  [
+    ...글.matchAll(
+      /<span class="at"><b>([^<]*)<\/b>(?: <span class="estimated">[^<]*<\/span>)? ([^<]*)<\/span>/g,
+    ),
+  ].map((m) => `${m[2]} ${m[1]}`);
 
 /** 경로 키를 열어 칸 목록으로. 검사가 키를 손으로 고쳐 볼 수 있게 여기서도 한 번 적는다. */
 const 키를_푼다 = (id) =>
@@ -75,12 +95,38 @@ test("카드마다 「다른 경로 더 보기」와 다른 경로 2개의 키�
   }
 });
 
+test("「다른 경로 더 보기」는 카드 밖에 서고 펴고 접힌다", async () => {
+  const 글 = await 비교();
+  for (const 노선망 of ["before", "after"]) {
+    // 카드 **안**에 있으면 한쪽만 펼쳐도 격자 첫 줄이 커져 옆 카드가 빈 채로 따라 늘어난다
+    const 카드만 = (글.match(
+      new RegExp(`<article[^>]*data-network="${노선망}"[^]*?</article>`),
+    ) ?? [""])[0];
+    assert.ok(!카드만.includes("<details"), `${노선망} — 다른 경로가 카드 안에 있다`);
+    assert.match(
+      글,
+      new RegExp(`</article><details class="alternatives" id="more-${노선망}"`),
+      `${노선망} — 카드 바로 뒤에 선다`,
+    );
+
+    // 펴고 접는 일은 `<details>` 몫이라 우리 스크립트가 없다(ADR-0001). 조각은 처음 펼 때 한 번만
+    // 부르고(`toggle once`), 그 뒤 접었다 펴는 것은 다시 받아 오지 않는다
+    const 방아쇠 = [...카드(글, 노선망).matchAll(/hx-trigger="([^"]*)"/g)].map((m) => m[1]);
+    assert.equal(방아쇠.length, ALTERNATIVE_JOURNEYS, 노선망);
+    assert.ok(
+      방아쇠.every((t) => t === `toggle once from:#more-${노선망}`),
+      `${노선망} — ${방아쇠.join(" / ")}`,
+    );
+  }
+});
+
 test("기본 경로의 키로 부르면 카드와 같은 정류장 목록이 온다", async () => {
   const 글 = await 비교();
   for (const 노선망 of ["before", "after"]) {
     const 한장 = 카드(글, 노선망);
     const [기본] = 경로_키(한장);
     const 복원 = await 다른_경로(기본);
+    assert.ok(정류장_목록(한장).length >= 2, `${노선망} ${정류장_목록(한장)}`);
     assert.deepEqual(정류장_목록(복원), 정류장_목록(한장), 노선망);
     assert.equal(노선_줄(복원), 노선_줄(한장), 노선망);
   }
@@ -135,16 +181,19 @@ test("`/compare` 조각에 카드마다 경로 지도 좌표 JSON이 하나씩 �
   }
 });
 
-test("좌표 JSON의 점 수가 카드의 「정류장 N곳」과 맞는다", async () => {
+test("좌표 JSON의 점 수가 경로 줄의 「N개 정류장」과 맞는다", async () => {
   // 구간 하나가 지나는 정류장이 N개면 점은 승차까지 더해 N+1개다. 좌표가 있는 줄만 실리므로,
-  // 이 검사가 어긋나면 좌표 없는 정류장이 생긴 것이다(오늘은 추정 좌표까지 있어 0개)
+  // 이 검사가 어긋나면 좌표 없는 정류장이 생긴 것이다(오늘은 추정 좌표까지 있어 0개).
+  // 정류장 수는 노선마다 달라지는 값이라 지표 표가 아니라 경로 줄에 있다(CONTEXT 「경로 줄」)
   const 글 = await 비교();
   for (const 노선망 of ["before", "after"]) {
     const 한장 = 카드(글, 노선망);
-    const 지난_곳 = Number((한장.match(/<li>정류장 (\d+)곳<\/li>/) ?? [])[1]);
+    const 구간별 = [...한장.matchAll(/· (\d+)개 정류장</g)].map((m) => Number(m[1]));
     const [지도] = 좌표(한장);
-    const 점 = 지도.legs.reduce((합, leg) => 합 + leg.length, 0);
-    assert.equal(점, 지난_곳 + 지도.legs.length, 노선망);
+    assert.equal(구간별.length, 지도.legs.length, `${노선망} 구간 수`);
+    구간별.forEach((지난_곳, i) => {
+      assert.equal(지도.legs[i].length, 지난_곳 + 1, `${노선망} ${i + 1}번째 구간`);
+    });
   }
 });
 
@@ -170,9 +219,9 @@ test("다른 경로 카드에도 좌표 JSON과 「지도에 표시」가 있다
 test("다른 경로 카드에도 예상 시간과 도보 합계가 적힌다", async () => {
   // 키에 두 지점이 실려 있어야 출발·도착 도보를 되살릴 수 있다 — 기본 카드와 같은 자로 잰다
   const 복원 = await 다른_경로(경로_키(카드(await 비교(), "after"))[1]);
-  assert.match(복원, /예상 시간[^<]*\d+분/);
-  assert.match(복원, /도보 합계[^<]*\d+m/);
-  assert.match(복원, /배차간격[^<]*정보 없음/);
+  assert.match(지표(복원, "예상 시간"), /^\d+분$/, 복원);
+  assert.match(지표(복원, "도보 합계"), /^\d+m$/, 복원);
+  assert.match(복원, /배차간격 정보 없음 · \d+개 정류장/, "배차간격은 경로 줄의 노선 자리에 있다");
 });
 
 test("응답에 옛 용어가 없다", async () => {

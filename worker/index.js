@@ -9,7 +9,7 @@
  *
  * 앞의 세 경로는 조각을 돌려준다 — `/places`는 Kakao 자동완성 후보, `/compare`는 카드 한 쌍,
  * `/journey/{id}`는 다른 경로 카드 하나다. `/headway`만 자료 경로라 JSON을 준다 — 읽는 쪽이
- * 화면이 아니라 LLM이기 때문이다(ADR-0009).
+ * 화면이 아니라 LLM이기 때문이다(ADR-0010).
  * 번들을 여기서도 import해 두는 까닭은, 배포에 실린 번들의 크기를 응답 머리로 보이기 위해서다.
  */
 import bundle from "./data.json" with { type: "json" };
@@ -57,7 +57,7 @@ export default {
     if (pathname.startsWith(JOURNEY_PREFIX)) {
       // 키가 번들과 안 맞으면 `journey`가 404와 한 줄 문구를 준다. htmx는 200이 아닌 응답을
       // 끼우지 않으므로 그 문구는 **주소를 그대로 연 사람**이 본다 — 키는 남에게 보낼 수 있는 링크다
-      const { html, status } = journey(pathname.slice(JOURNEY_PREFIX.length));
+      const { html, status } = journey(pathname.slice(JOURNEY_PREFIX.length), searchParams);
       return htmlResponse(html, status);
     }
     return env.ASSETS.fetch(request);

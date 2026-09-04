@@ -37,6 +37,9 @@ ADDITION_COLUMNS = ("정류소",)
 # 정류장 좌표 — 시 공표 CSV가 아니라 광주 BIS API에서 받아 둔 것이다(ADR-0007). 읽기만 한다
 STOPS_COLUMNS = ("STATION_NUM", "BUSSTOP_NAME", "ARS_ID", "LATITUDE", "LONGITUDE")
 
+# 개편 전 배차간격. 파일에는 정류장 목록 두 열도 있지만 노선안과 겹치는 값이라 읽지 않는다
+HEADWAY_COLUMNS = ("route_name", "headway_minutes")
+
 RENAME_CSV = "명칭 변경 정류소.csv"
 REMOVAL_CSV = "통폐합이전정류소.csv"
 ADDITION_CSV = "신설 정류소.csv"
@@ -44,7 +47,10 @@ BEFORE_CSV = "광주권역 개편전 노선안.csv"
 AFTER_CSV = "광주권역 개편후 노선안.csv"
 TABLE_CSV = "노선개편 전후 비교표.csv"
 STOPS_CSV = "stops.csv"
+HEADWAY_CSV = "route_headways_with_stops.csv"
 NAME_CANON_JSON = "name_canon.json"
+# 노선 형상 — OSRM이 낸 차도 경로(ADR-0009). 빌드는 읽기만 한다
+ROUTE_SHAPES_JSON = "route_shapes.json"
 
 # 「지선 97(빛그린산단출근)」 → 종류 지선 · 번호 97 · 방면 빛그린산단출근. 「228」은 종류 없음
 ROUTE_RE = re.compile(r"^(?P<kind>[^\d\s(]+)?\s*(?P<num>\d+(?:-\d+)?)\s*(?:\((?P<branch>[^)]*)\))?$")
@@ -204,6 +210,57 @@ def read_removals(source: Path) -> list[Removal]:
 def read_additions(source: Path) -> list[str]:
     """신설 정류소 68행 — 이름만 쓴다."""
     return [r["정류소"].strip() for r in read_csv(source / ADDITION_CSV, ADDITION_COLUMNS)]
+
+
+def read_headways(source: Path) -> dict[str, int]:
+    """개편 전 배차간격 110행 — 노선 이름 → 분.
+
+    **개편 전만 있다.** 개편 후는 시가 공표한 값이 없어 카드가 「정보 없음」이라 적는다
+    (CONTEXT 「경로 줄」). 개편 전 111행 중 순환01 한 행도 이 파일에 없어 그 노선도 「정보 없음」이다.
+
+    이름은 노선안의 버스번호와 같은 표기라 잇는 규칙(ADR-0006)이 필요 없다 — 공백만 뗀다.
+    분이 아닌 값이 오면 멈춘다. 조용히 건너뛰면 그 노선만 「정보 없음」이 되어, 자료가 깨진 것인지
+    원래 없는 것인지를 화면에서 가릴 수 없다.
+    """
+    out: dict[str, int] = {}
+    for r in read_csv(source / HEADWAY_CSV, HEADWAY_COLUMNS):
+        name = re.sub(r"\s+", "", r["route_name"])
+        raw = r["headway_minutes"].strip()
+        if not raw.isdigit() or int(raw) <= 0:
+            raise BuildError(f"{HEADWAY_CSV}의 배차간격이 분이 아닙니다: {name} — {raw!r}")
+        if name in out:
+            raise BuildError(f"{HEADWAY_CSV}에 같은 노선이 두 번 있습니다: {name}")
+        out[name] = int(raw)
+    return out
+
+
+def read_shapes(source: Path) -> dict[str, tuple[tuple[float, float], ...]]:
+    """노선 형상 452개 — 「망|노선이름|방향」 → 차도 경로의 점들 (ADR-0009).
+
+    키의 노선 이름은 노선안 CSV 표기 그대로다(방면까지, 「두암81(각화초교.장등마을)」). 방향은
+    `up`·`down`이다. 값은 OSRM이 낸 차도 경로를 10m로 단순화한 것이라 **정류장 좌표가 아니다** —
+    정류장 점은 지금도 `stops.csv`에서 온다(ADR-0009 결정 1: 점은 사실, 선은 추정).
+
+    파일이 없으면 빈 표를 돌려준다. 그때 지도는 지난날처럼 정류장을 직선으로 잇는다 — 형상은
+    도커로 한 번 내는 것이라(ADR-0009 결정 2) 없는 곳에서도 빌드는 돌아야 한다.
+    """
+    path = source / ROUTE_SHAPES_JSON
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    shapes = data.get("shapes", {})
+    out: dict[str, tuple[tuple[float, float], ...]] = {}
+    for key, shape in shapes.items():
+        points = shape.get("points") or []
+        if len(points) < 2:
+            continue
+        out[key] = tuple((float(p[0]), float(p[1])) for p in points)
+    return out
+
+
+def shape_key(network: str, route_name: str, way: str) -> str:
+    """`read_shapes`의 키. 만드는 쪽(`tools/build_shapes.py`)과 이 한 줄로만 맞춘다."""
+    return f"{network}|{route_name}|{way}"
 
 
 def read_stops(source: Path) -> list[Stop]:

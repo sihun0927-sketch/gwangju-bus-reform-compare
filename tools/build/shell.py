@@ -26,6 +26,20 @@ PLACE_TAB = "장소로 찾기"
 ROUTE_TAB = "노선번호로 찾기"
 PLACE_PLACEHOLDER = "장소나 주소 입력 (예: 전남대)"
 PLACE_FIELDS = (("from", "출발"), ("to", "도착"))
+
+# 예시 검색 셋. 누르면 두 입력칸이 채워지고 바로 비교가 돈다 (2026-09-04).
+#
+# 시민이 처음 보는 화면에는 채울 것이 둘이라 무엇을 넣어야 할지 막막하다. 눌러 볼 것을 준다.
+# 이름은 시민이 부르는 말(「유스퀘어」·「첨단지구」)이고, 좌표는 `stops.csv`의 실제 정류장
+# 자리다 — 지어낸 좌표를 쓰지 않는다(ADR-0007). 장소 탭은 좌표로 비교하므로 이름과 좌표가
+# 정확히 같은 곳을 가리킬 필요는 없다. 도보권 안에서 타고 내릴 정류장은 엔진이 고른다.
+EXAMPLES_TITLE = "예시 검색"
+EXAMPLES = (
+    ("유스퀘어", "35.16177,126.87969568", "전남대", "35.17009722,126.90382222"),
+    ("금남로4가역", "35.15123889,126.91349741", "첨단지구", "35.21757203,126.84071599"),
+    ("조선대", "35.144841,126.92601", "수완지구", "35.202784,126.839407"),
+)
+
 ROUTE_PLACEHOLDER = "노선번호 입력 (예: 지원152)"
 ROUTE_FIELD = ("number", "노선번호")
 ROUTE_HINT = "번호를 치면 후보가 뜹니다. 목록에 있는 번호를 골라야 카드가 열립니다."
@@ -110,6 +124,22 @@ def candidates(rows: list[Row]) -> str:
     ])
 
 
+def _examples() -> list[str]:
+    """예시 검색 줄. 누르는 것은 `place.js`가 받아 두 칸을 채우고 비교를 부른다."""
+    return [
+        '<div class="examples">',
+        f'<span class="examples-title">{EXAMPLES_TITLE}</span>',
+        *[
+            f'<button type="button" class="example"'
+            f' data-from="{프롬}" data-from-name="{escape(출발)}"'
+            f' data-to="{투}" data-to-name="{escape(도착)}">'
+            f"{escape(출발)} → {escape(도착)}</button>"
+            for 출발, 프롬, 도착, 투 in EXAMPLES
+        ],
+        "</div>",
+    ]
+
+
 def _place_panel() -> list[str]:
     return [
         '<section class="panel place">',
@@ -125,6 +155,7 @@ def _place_panel() -> list[str]:
             )
         ],
         "</div>",
+        *_examples(),
         '<div class="result" id="place-result"></div>',
         "</section>",
     ]
@@ -186,8 +217,9 @@ def page(route_list: str, rows: list[Row], kakao_js_key: str = "") -> str:
         f'<p class="lead">{LEAD}</p>',
         '<div class="tabbed">',
         # 라디오 단추가 패널보다 앞에 있어야 CSS가 형제 선택자로 켜고 끌 수 있다
-        '<input type="radio" name="tab" id="tab-place" class="tab-toggle">',
-        '<input type="radio" name="tab" id="tab-route" class="tab-toggle" checked>',
+        # 첫 화면은 장소 탭이다(2026-09-04) — 시민이 먼저 묻는 것은 「내 길이 어떻게 달라지나」다
+        '<input type="radio" name="tab" id="tab-place" class="tab-toggle" checked>',
+        '<input type="radio" name="tab" id="tab-route" class="tab-toggle">',
         '<nav class="tabs">',
         f'<label for="tab-place">{PLACE_TAB}</label>',
         f'<label for="tab-route">{ROUTE_TAB}</label>',

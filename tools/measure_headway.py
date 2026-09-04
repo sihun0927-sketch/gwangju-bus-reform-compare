@@ -1,4 +1,4 @@
-"""실측 — 개편 후 배차간격 추정과 차량 수지 (architecture §6-4, ADR-0009).
+"""실측 — 개편 후 배차간격 추정과 차량 수지 (architecture §6-4, ADR-0010).
 
     python tools/measure_headway.py            # 수치를 다 찍는다. 문서 §6-4가 이 출력이다
     python tools/measure_headway.py --gate G7  # 게이트 하나만. 통과하면 표식 한 줄, 아니면 0이 아닌 값
@@ -19,8 +19,8 @@ from tools.build import bundle, headway as hw, load, rename_dict  # noqa: E402
 
 SOURCE = ROOT / "data" / "source"
 ARCH = ROOT / "docs" / "architecture.md"
-ADR = ROOT / "docs" / "adr" / "0009-headway-estimate.md"
-ADR_INFER = ROOT / "docs" / "adr" / "0010-headway-inference.md"
+ADR = ROOT / "docs" / "adr" / "0010-headway-estimate.md"
+ADR_INFER = ROOT / "docs" / "adr" / "0011-headway-inference.md"
 CONTEXT = ROOT / "CONTEXT.md"
 DATA_README = ROOT / "data" / "README.md"
 
@@ -211,7 +211,7 @@ def _numbers(text: str) -> set[str]:
 def g16(result: hw.Estimate, headways: dict[str, float]) -> str:
     """문서에 적은 수치가 지금 계산한 값과 같은가. 문서가 코드보다 낡는 것을 잡는다.
 
-    문서마다 말하는 것이 달라 대조할 수치도 다르다 — 추정 모형은 ADR-0009, 추론 층은 ADR-0010,
+    문서마다 말하는 것이 달라 대조할 수치도 다르다 — 추정 모형은 ADR-0010, 추론 층은 ADR-0011,
     실측 절(`architecture` §6-4)은 둘 다다.
     """
     n = result.network

@@ -75,7 +75,7 @@ function 노선망(key, label) {
      */
     along: (route, side, from, to) =>
       (bundle.route_stops[route]?.[side] ?? []).slice(from, to + 1),
-    /** 배차간격. 개편 전 자료가 아직 없어 늘 `null`이다(스펙 Out of Scope). */
+    /** 배차간격(분). 시가 공표한 값이 있는 개편 전 110개만 숫자이고 나머지는 `null`이다. */
     headway: (route) => bundle.routes[route].headway,
   };
 }

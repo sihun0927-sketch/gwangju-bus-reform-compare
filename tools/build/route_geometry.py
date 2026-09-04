@@ -32,6 +32,8 @@ DIGITS = 6
 SAME_PLACE_M = 200.0
 
 Point = tuple[float, float]
+# 노선 형상 하나. 없으면 `None`이고 그때 선은 정류장 직선이다(ADR-0009)
+Shape = tuple[Point, ...] | None
 
 
 @dataclass(frozen=True)
@@ -153,15 +155,22 @@ def geometry(
     before_up: tuple[str, ...],
     after_up: tuple[str, ...],
     up: list[Line],
+    lines: tuple[Shape, Shape] = (None, None),
 ) -> Geometry:
     """개편 전 상행 · 대체 노선 상행 · 그 둘을 맞댄 줄들 → 지도 하나.
 
     점은 표의 줄에서 나온다 — 유지·경유 제외는 개편 전 정류장, 경유 추가는 개편 후 정류장의
     자리다. 그래서 점 수 + `missing` = 상행 줄 수이고, 표에 보이는 것과 지도에 보이는 것이
-    어긋나지 않는다. 점은 선이 고른 바로 그 자리를 쓴다 — 따로 고르면 점이 선을 벗어난다.
+    어긋나지 않는다. 점이 서는 자리는 `stops.csv`가 준 좌표다.
+
+    **선은 점과 따로 온다.** `lines`에 노선 형상(OSRM 차도 경로, ADR-0009)이 오면 그것이 선이고,
+    안 오면 지난날처럼 정류장을 순서대로 이은 직선이다. 형상은 정류장을 지나가되 정확히 밟지는
+    않으므로 점이 선에서 몇 미터 벗어나 보일 수 있다 — 점은 사실이고 선은 추정이라 그렇다
+    (ADR-0009 결정 1).
     """
     before = chain(index, before_up)
     after = chain(index, after_up)
+    형상_전, 형상_후 = lines
 
     stops: list[Dot] = []
     undrawn: set[str] = set()
@@ -183,8 +192,8 @@ def geometry(
         stops.append(Dot(lat=found[0], lng=found[1], name=name, state=line.state))
 
     return Geometry(
-        before=tuple(p for p in before if p is not None),
-        after=tuple(p for p in after if p is not None),
+        before=형상_전 or tuple(p for p in before if p is not None),
+        after=형상_후 or tuple(p for p in after if p is not None),
         stops=tuple(stops),
         undrawn=frozenset(undrawn),
     )

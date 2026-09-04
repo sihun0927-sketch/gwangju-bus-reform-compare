@@ -1,19 +1,42 @@
 # docs/images
 
-캔버스 두 개의 아트보드를 헤드리스 Chrome으로 렌더링한 PNG. 캔버스 없이 문서만 읽을 때를 위한 것이다.
+아트보드를 헤드리스 크롬으로 렌더링한 PNG. 캔버스 없이 문서만 읽을 때를 위한 것이다.
 
-| 파일 | 출처 캔버스 · 페이지 |
+## 다시 뽑는 법
+
+```
+python tools/render_canvas.py                      # 아트보드 원본이 리포에 있는 것 전부
+python tools/render_canvas.py mock-1-place-result.dc.html   # 하나만
+```
+
+크기는 `docs/canvas/canvas.json`의 `w`·`h`다. 내용이 창보다 길면 **찍기 전에 멈추고** 얼마로 고치라고
+알려 준다 — 잘린 PNG는 눈으로 봐야만 알 수 있고, 그러면 아무도 안 본다.
+
+## 아트보드 원본이 있는 것
+
+| 파일 | 아트보드 원본 |
 |---|---|
-| `modmap-1-place-map.png` · `modmap-1-place-worker.png` | 모듈 지도 · 장소로 찾기 |
-| `modmap-2-route-map.png` · `modmap-2-route-build.png` | 모듈 지도 · 노선번호로 찾기 |
-| `mock-1-place-initial.png` · `mock-1-place-result.png` | 화면 목업 · 장소로 찾기 |
+| `modmap-1-place-map.png` | `docs/canvas/modmap-1-place-map.dc.html` |
+| `modmap-1-place-worker.png` | `docs/canvas/modmap-1-place-worker.dc.html` |
+| `modmap-2-route-map.png` | `docs/canvas/modmap-2-route-map.dc.html` |
+| `mock-1-place-result.png` | `docs/canvas/mock-1-place-result.dc.html` |
+
+이 넷은 2026-09-04에 **리포 안에서 다시 지었다**(#28). 그 전 그림에는 D1 표와 판정 줄이 남아 있었는데,
+원본 아트보드가 세션 작업 파일에만 있어 고칠 수가 없었다 — 원본을 리포에 넣은 까닭이 그것이다.
+고칠 일이 생기면 `.dc.html`을 고치고 위 명령을 돌린다. 모양은 `docs/canvas/canvas.css` 한 곳에 있다.
+
+## 아트보드 원본이 없는 것
+
+아래는 옛 캔버스에서 뽑은 그림이고 원본이 남아 있지 않다. **고치려면 `docs/canvas/`에 아트보드부터
+다시 지어야 한다.** 지금 내용에 틀린 것은 없다.
+
+| 파일 | 무엇 |
+|---|---|
+| `modmap-2-route-build.png` | 노선번호로 찾기 · 빌드 스크립트 단계 |
+| `mock-1-place-initial.png` | 화면 목업 · 장소로 찾기 (첫 화면) |
 | `mock-2-route-initial.png` · `mock-2-route-result.png` | 화면 목업 · 노선번호로 찾기 |
 | `mock-3-stop-diff.png` | 화면 목업 · 노선 변화 표 |
 | `mock-4-fragment-source.png` | 화면 목업 · Q6 조각 출처 a vs b |
-
-다시 뽑는 법: 아트보드의 `.dc.html`을 파일로 열어
-`chrome --headless=new --hide-scrollbars --window-size=<w>,<h> --screenshot=<out>.png <file>`.
-크기는 캔버스 `canvas.json`의 w·h. 아트보드 원본은 캔버스에서 내려받거나 세션 작업 파일에 있다.
 
 ## checks/
 
@@ -27,13 +50,8 @@
 | `check-5-3-table-swapped.jpg` | #5 · 「지선10」 → 표가 17·41·39 / 15·47·38로 |
 | `check-5-4-place-tab.jpg` | #5 · 장소 탭(입력칸 자리만) |
 | `check-5-5-swap-shows-result.jpg` | #5 · 목록 끝의 두암181을 눌러도 카드가 화면 안에 뜬다 |
-| `check-36-1-map-slot-without-key.jpg` | #36 · 노선 지도 자리와 범례, 「좌표 없는 정류장 1곳은 지도에 없습니다」 — **Kakao JS 키 없이** 찍은 것이라 자리에는 「지도를 불러오지 못했습니다」가 있다 |
+| `check-36-1-map-slot-without-key.jpg` | #36 · 키 없이 찍은 노선 지도 자리 |
 
 괄호 안 수치는 **찍을 당시**의 것이다. 그 뒤 명칭 사전(#3)이 들어가 같은 화면이
 문흥18 ↔ 간선18은 49·9·3 / 52·10·4, ↔ 지선10은 18·40·38 / 16·46·37로 나온다.
 그림은 #5의 화면 배치 증거로 그대로 두고, 수치의 정본은 `docs/architecture.md` §6이다.
-
-**선과 점이 그려진 지도 그림은 아직 없다.** 리포에 Kakao JS 키가 없어 이 자리는 늘 비어 있다(ADR-0005).
-키가 있는 환경에서 `KAKAO_JS_KEY=… python -m tools.build` 뒤에 같은 화면을 찍어 `check-36-2-…`로 더한다.
-키 없이 확인한 것은 그리는 코드가 부르는 것들이다 — 개편 전 선 `#0e6b5c` 폭 8(58점) · 대체 노선 선 `#1d4ed8`
-폭 4(52점) · 점 61개(회색·빨강·파랑 셋), 그리고 대체 노선 버튼을 누르면 같은 지도 위에 지웠다 다시 그리는 것.

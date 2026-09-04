@@ -1,0 +1,33 @@
+{
+  "note": "아트보드와 그 PNG. 크기(w·h)는 헤드리스 크롬 창 크기이자 그림 크기다. tools/render_canvas.py가 읽는다.",
+  "artboards": [
+    {
+      "file": "modmap-1-place-map.dc.html",
+      "png": "modmap-1-place-map.png",
+      "title": "장소로 찾기 · 모듈 지도",
+      "w": 1500,
+      "h": 1159
+    },
+    {
+      "file": "modmap-1-place-worker.dc.html",
+      "png": "modmap-1-place-worker.png",
+      "title": "장소로 찾기 · Worker 단계",
+      "w": 1240,
+      "h": 961
+    },
+    {
+      "file": "modmap-2-route-map.dc.html",
+      "png": "modmap-2-route-map.png",
+      "title": "노선번호로 찾기 · 모듈 지도",
+      "w": 1500,
+      "h": 1371
+    },
+    {
+      "file": "mock-1-place-result.dc.html",
+      "png": "mock-1-place-result.png",
+      "title": "화면 목업 · 장소로 찾기 (결과 상태)",
+      "w": 1000,
+      "h": 1554
+    }
+  ]
+}

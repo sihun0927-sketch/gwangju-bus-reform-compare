@@ -49,6 +49,7 @@ def main(argv: list[str]) -> int:
     print(
         f"번들 JSON — 정류장 {번들.stops}줄(추정 좌표 {번들.estimated})"
         f" · 노선 {번들.routes} · 노선별 정류장 {번들.route_stops}줄"
+        f" · 배차간격 {번들.headways}개"
         f" · 환승 쌍 {번들.transfers}줄 · 노선 쌍 환승 지점 {번들.route_links}줄"
         f" · {result.bundle_bytes / 1024 / 1024:.2f}MB를 {result.bundle}에 썼습니다."
     )

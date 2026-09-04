@@ -1,0 +1,260 @@
+/* 아트보드 공용 스타일.
+ *
+ * 그림 넷이 같은 말을 같은 모양으로 하도록 여기 한 곳에 둔다 — 배지 색이 그림마다 다르면
+ * 「정적」과 「동적」이 눈으로 안 갈린다.
+ *
+ * 렌더링은 `python tools/render_canvas.py`가 헤드리스 크롬으로 한다. 아트보드마다 크기가
+ * `docs/canvas/canvas.json`에 박혀 있고, 이 파일은 그 크기 안에서만 논다 — 화면 폭에 따라
+ * 흐르지 않는다(그림은 반응형일 까닭이 없다).
+ */
+
+:root {
+  --ink: #12211e;
+  --ink-soft: #4b5f5b;
+  --ink-faint: #7c8f8a;
+  --line: #d8e3e0;
+  --line-soft: #e8efed;
+  --band: #f1f5f4;
+  --paper: #ffffff;
+  --teal: #0e6b5c;
+  --teal-soft: #e3f0ed;
+  --amber: #8a5a12;
+  --amber-soft: #fdf1dc;
+  --orange: #c2410c;
+  --orange-soft: #fef0e7;
+  --blue: #1d4ed8;
+  --worse: #fdeceb;
+  --better: #e8f5ee;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Pretendard", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.artboard {
+  padding: 18px 22px 22px;
+}
+
+code, .mono, .url {
+  font-family: "D2Coding", "Consolas", "Courier New", monospace;
+  font-size: 12px;
+}
+
+/* ── 머리 ─────────────────────────────────────────────── */
+
+.sheet-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-head h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--teal);
+  letter-spacing: -0.01em;
+}
+
+.sheet-head .legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+
+.key { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+
+.swatch {
+  width: 13px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--ink-faint);
+  background: var(--paper);
+}
+.swatch.dynamic { border-style: dashed; border-color: var(--teal); background: var(--teal-soft); }
+.swatch.browser { border-style: dotted; border-color: var(--orange); background: var(--orange-soft); }
+.swatch.build { border-color: var(--amber); background: var(--amber-soft); }
+.swatch.bundle { border-color: var(--teal); background: var(--teal); }
+
+/* ── 열 머리와 띠 ──────────────────────────────────────── */
+
+.cols, .row {
+  display: grid;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.cols {
+  margin-top: 14px;
+  align-items: end;
+}
+
+.cols div {
+  font-size: 12px;
+  color: var(--ink-soft);
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--line);
+}
+
+.band {
+  margin: 16px 0 10px;
+  padding: 5px 12px;
+  background: var(--band);
+  border-radius: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.row { margin-bottom: 10px; }
+
+/* ── 칸 ───────────────────────────────────────────────── */
+
+.cell {
+  position: relative;
+  padding: 11px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.cell.dashed { border-style: dashed; border-color: #9dc6bd; }
+.cell.dotted { border-style: dotted; border-color: #e2a887; }
+.cell.plain { border: none; padding-left: 0; padding-right: 0; }
+
+.cell h3 {
+  margin: 0 0 4px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.cell h3 .mono { font-size: 13px; }
+
+.cell p { margin: 4px 0 0; color: var(--ink-soft); font-size: 12px; }
+.cell p:first-of-type { margin-top: 5px; }
+
+.badge {
+  position: absolute;
+  top: -9px;
+  right: 10px;
+  padding: 1px 8px;
+  border-radius: 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.badge.static { background: var(--band); color: var(--ink-soft); border: 1px solid var(--line); }
+.badge.dynamic { background: var(--teal-soft); color: var(--teal); border: 1px solid #a9d2c9; }
+.badge.worker { background: var(--teal); color: #fff; }
+.badge.build { background: var(--amber-soft); color: var(--amber); border: 1px solid #e6c68b; }
+.badge.browser { background: var(--orange-soft); color: var(--orange); border: 1px solid #f0b895; }
+
+.terms { margin: 6px 0 2px; display: flex; flex-wrap: wrap; gap: 4px; }
+.term {
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: var(--teal-soft);
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 600;
+}
+.terms-label { font-size: 11px; color: var(--ink-faint); margin: 5px 0 0; }
+
+.data { margin: 0; padding: 0; list-style: none; }
+.data li { font-size: 11.5px; color: var(--ink-soft); margin-bottom: 3px; }
+.data li::before { content: "○ "; color: var(--ink-faint); }
+.data li.have::before { content: "● "; color: var(--teal); }
+.data li.none { color: var(--ink-faint); }
+.data li.none::before { content: ""; }
+
+.note { font-size: 11.5px; color: var(--ink-faint); }
+
+/* ── 화살표 ───────────────────────────────────────────── */
+
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  font-size: 15px;
+}
+.arrow.dynamic { color: var(--teal); }
+.arrow.browser { color: var(--orange); }
+
+/* ── 화면 조각 (왼쪽 열의 작은 목업) ─────────────────────── */
+
+.screen {
+  position: relative;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ink);
+  border-radius: 6px;
+  padding: 10px 12px 12px;
+  background: var(--paper);
+}
+
+.screen .num {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 10.5px;
+  line-height: 17px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.screen .title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.screen .tabs { display: flex; gap: 14px; font-size: 11.5px; color: var(--ink-faint); margin-bottom: 8px; }
+.screen .tabs .on { color: var(--ink); font-weight: 700; border-bottom: 2px solid var(--teal); padding-bottom: 2px; }
+.screen .field {
+  display: flex;
+  justify-content: space-between;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 8px;
+  margin-bottom: 5px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+.screen .field b { font-weight: 500; color: var(--ink); }
+.screen .field .side { color: var(--ink-faint); font-size: 10.5px; }
+.screen .opt {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.screen .opt.on { background: var(--teal-soft); }
+.screen .opt span { color: var(--ink-faint); font-size: 10.5px; }
+
+/* ── 표 ───────────────────────────────────────────────── */
+
+table.grid { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+table.grid th, table.grid td {
+  border: 1px solid var(--line);
+  padding: 3px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+table.grid th { background: var(--band); font-weight: 600; color: var(--ink-soft); }
+table.grid td.worse { background: var(--worse); }
+table.grid td.better { background: var(--better); }

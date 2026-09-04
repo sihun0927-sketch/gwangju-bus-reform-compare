@@ -28,6 +28,18 @@ export function point(글) {
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
+/**
+ * 요청 매개변수 → 시민이 고른 두 장소의 이름 `{from, to}` (CONTEXT 「경로 줄」).
+ *
+ * 좌표와 달리 이름은 경로 키에 **없다** — 이름까지 키에 넣으면 같은 경로가 무엇으로 검색했는지에
+ * 따라 다른 키가 되고, 키는 남에게 보내는 링크다(`journey.js` 머리말). 그래서 `/compare`와
+ * `/journey/{id}` 둘 다 매개변수로 받는다. 없으면 비고, 그때 카드는 「출발 지점」이라 적는다.
+ */
+export const placeNames = (params) => ({
+  from: params?.get("fromName") || undefined,
+  to: params?.get("toName") || undefined,
+});
+
 /** 두 지점 사이 직선 거리(m). 도로를 따르지 않는다 — 도보 거리는 모두 이 값이다. */
 export function metresBetween(a, b) {
   const φ1 = 라디안(a.lat);
