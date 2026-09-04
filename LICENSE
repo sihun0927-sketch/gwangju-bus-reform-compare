@@ -19,3 +19,22 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+## Data license — `data/source/route_shapes.json`
+
+The MIT license above covers the code in this repository.
+
+**`data/source/route_shapes.json` is not MIT.** It is derived from OpenStreetMap and is
+licensed under the **Open Database License (ODbL) v1.0**:
+
+    © OpenStreetMap contributors — https://www.openstreetmap.org/copyright
+
+The file was produced by routing over a Geofabrik South Korea extract with OSRM
+(see `docs/adr/0009-route-shape-from-osrm.md` and `data/README.md`). ODbL requires
+attribution and share-alike for the database and its derivatives; the map screens carry
+the attribution in the map corner.
+
+이 저장소의 **코드는 MIT**이고, **`data/source/route_shapes.json` 한 파일만 ODbL**입니다.
+귀속 문구는 화면의 지도 모서리에 있습니다.

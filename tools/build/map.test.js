@@ -221,6 +221,19 @@ test("라벨은 이름이 있는 점에만 붙고 색을 따라간다", () => {
   console.log("MAP-G4 OK");
 });
 
+test("지도 모서리에 OpenStreetMap 귀속이 한 번 붙는다", () => {
+  // 선이 OSM 파생이라 ODbL이 귀속을 요구한다(ADR-0009 결정 9). 다시 그려도 늘지 않아야 한다
+  const { busMap } = 싣는다();
+  const 곳 = 자리();
+  const 그림 = { paths: [], markers: [{ lat: 1, lng: 1, colors: ["#000"], size: "small", label: "" }] };
+  busMap.draw(곳, 그림);
+  busMap.draw(곳, 그림);
+  const 귀속 = 곳.children.filter((애) => 애.className === "map-credit");
+  assert.equal(귀속.length, 1, "지도 하나에 한 번");
+  assert.equal(귀속[0].textContent, "© OpenStreetMap contributors");
+  console.log("MAP-G13 OK");
+});
+
 test("자리 크기가 바뀌면 가운데를 붙잡고 다시 맞춘다", () => {
   const { busMap, 얹힌 } = 싣는다();
   const 곳 = 자리();

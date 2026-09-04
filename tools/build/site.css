@@ -270,6 +270,7 @@ ul.summary li.added .count { color: var(--better-ink); }
 /* 장소 탭 — 카드 한 쌍과 그 위의 경로 지도 (CONTEXT 「경로 지도」·「다른 경로 카드」) */
 .journey-map { margin: 0 0 var(--gap); }
 .journey-map .canvas {
+  position: relative;
   height: 320px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -299,6 +300,21 @@ ul.summary li.added .count { color: var(--better-ink); }
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 .map-dot__core { flex: none; border-radius: 50%; background: #fff; }
+/* 지도 모서리의 귀속 — ODbL이 요구한다(ADR-0009 결정 9). 지도 밖 글줄을 늘리지 않으려고
+   타일 위에 얹는다. 눌림은 지도로 흘려 보내 끌기·확대를 막지 않는다 */
+.map-credit {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  z-index: 4;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.4;
+  pointer-events: none;
+}
 .map-label {
   font-size: 11px;
   font-weight: 600;
@@ -469,7 +485,8 @@ details.alternatives > .journey-card { margin-top: 10px; }
   /* 한 줄로 세우면 격자 자리 지정이 되레 순서를 흩뜨린다 — 조각에 적힌 차례대로 쌓는다 */
   .compare { grid-template-columns: 1fr; }
   .compare > * { grid-row: auto; grid-column: 1; }
-  .journey-map .canvas { height: 240px; }
+  .journey-map .canvas {
+  position: relative; height: 240px; }
 }
 
 @media (max-width: 640px) {
