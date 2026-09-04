@@ -30,12 +30,27 @@ export const MAX_TRANSFERS = 2;
 
 /**
  * 버스가 정류장 하나를 지나는 데 걸린다고 보는 시간(초).
- * 사용자가 추천값(120초)을 듣고도 확정한 값이다. 바꾸려면 이 상수만 바꾼다.
+ *
+ * 20초로 두었다가 110초로 올렸다(2026-09-04). 20초는 정류장 사이를 **달리는** 시간만 센 값이라
+ * 카드의 예상 시간이 실제의 3분의 1로 나왔다 — 도심 버스는 정차·승하차·신호까지 정류장 하나에
+ * 90~120초를 쓴다. 시각표가 들어오면 이 상수 대신 그 값을 쓴다. 바꾸려면 여기만 바꾼다.
  */
-export const SECONDS_PER_STOP = 20;
+export const SECONDS_PER_STOP = 110;
 
 /** 걷는 속도(km/h). 출발·환승·도착 도보에 모두 같은 값을 쓴다. */
 export const WALK_SPEED_KMH = 4;
+
+/**
+ * 걸어야 하는 실제 길이 직선거리보다 이만큼 길다고 본다(2026-09-04).
+ *
+ * 도보 거리는 두 점 사이 직선이다(`candidates`의 `metresBetween`). 실제로는 건널목을 찾아
+ * 돌아가고 모퉁이를 꺾으므로 그보다 길고, 직선 그대로 재면 예상 시간의 도보 몫이 짧게 나온다.
+ *
+ * **예상 시간에만 곱한다.** 카드의 「도보 합계」와 도보권 반경(`WALK_RADIUS_M`)은 직선 그대로
+ * 둔다 — 합계는 시민이 지도에서 눈으로 재는 값이고, 반경은 「몇 m 안의 정류장을 후보로 볼까」를
+ * 정하는 자라 시간과 쓰임이 다르다. 여기에까지 곱하면 도보권이 385m로 좁아진다.
+ */
+export const WALK_DETOUR_FACTOR = 1.3;
 
 /** 「다른 경로 더 보기」로 펼치는 경로 수. 기본 경로 하나 뒤에 붙는다. */
 export const ALTERNATIVE_JOURNEYS = 2;
@@ -61,16 +76,18 @@ export const PLACE_SEARCH_MARGIN_M = 5000;
 const SECONDS_PER_HOUR = 3600;
 const METRES_PER_KM = 1000;
 
-/** 도보 거리(m)를 걷는 데 걸리는 시간(초). */
+/** 도보 거리(m)를 걷는 데 걸리는 시간(초). 직선거리에 우회 몫을 곱한 길이를 걷는다고 본다. */
 function walkSeconds(metres) {
-  return (metres / (WALK_SPEED_KMH * METRES_PER_KM)) * SECONDS_PER_HOUR;
+  const 걷는_거리 = metres * WALK_DETOUR_FACTOR;
+  return (걷는_거리 / (WALK_SPEED_KMH * METRES_PER_KM)) * SECONDS_PER_HOUR;
 }
 
 /**
  * 정류장 몇 개와 도보 몇 미터의 추정 소요 시간(초) (CONTEXT 「추정 소요 시간」).
  *
- * 배차 대기는 넣지 않는다 — 시각표가 없다. 도보 몫이 거리에 정비례하므로 구간을 나눠 재서 더한
- * 값과 한꺼번에 잰 값이 같다. `search`의 가지치기가 그 성질에 기대고 있다.
+ * 배차 대기는 넣지 않는다 — 시각표가 없다. 도보 몫이 거리에 정비례하므로(우회 몫은 상수 배라
+ * 정비례를 깨지 않는다) 구간을 나눠 재서 더한 값과 한꺼번에 잰 값이 같다. `search`의 가지치기가
+ * 그 성질에 기대고 있다.
  */
 export function estimateSeconds(stopsPassed, walkMetres) {
   return stopsPassed * SECONDS_PER_STOP + walkSeconds(walkMetres);
