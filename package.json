@@ -11,6 +11,11 @@
     "deploy:dry": "wrangler deploy --dry-run"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "wrangler": "4.128.0"
+  },
+  "dependencies": {
+    "openai": "^7.10.0",
+    "zod": "^4.5.4"
   }
 }
