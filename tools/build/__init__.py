@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -104,6 +105,8 @@ def build(
     made = bundle_json.make(before, after, stops, canon, renames, additions, headways)
     # 노선 지도는 번들과 같은 이름 잇기를 쓴다. 다만 추정 좌표는 안 받는다(ADR-0007, `route_geometry`)
     index = bundle_json.stop_index(stops, canon, renames)
+    # 지도의 선은 정류장 직선이 아니라 차도 경로다(ADR-0009). 없으면 빈 표이고 직선으로 돌아간다
+    shapes = load.read_shapes(source)
 
     table = terminus_align.read_table(_align_table_path(source, align_table))
     alignments, unwritten = terminus_align.align(pairs, table)
@@ -133,7 +136,7 @@ def build(
         alignment = alignments[pair.key]
         stages[alignment.stage] = stages.get(alignment.stage, 0) + 1
         tables[pair.key], drawn = _write_table(
-            out, pair, alignment, before_siblings, after_siblings, facts, index
+            out, pair, alignment, before_siblings, after_siblings, facts, index, shapes
         )
         map_stops += len(drawn.stops)
         map_undrawn |= drawn.undrawn
@@ -146,6 +149,7 @@ def build(
     _write(out / "index.html", render.index_page(route_list.rows(cards), kakao_js_key))
     for asset in assets:
         shutil.copyfile(asset, out / asset.name)
+    _write_shapes(out, shapes)
 
     written = bundle_json.write(bundle_path, made)
 
@@ -161,6 +165,30 @@ def _write(path: Path, html: str) -> None:
     path.write_text(html, encoding="utf-8")
 
 
+# 노선 형상을 파일 하나씩 내놓는 자리. 장소 탭은 조각에 좌표를 싣지 않고 여기서 받아 자른다
+# (ADR-0009 결정 4) — 경로 하나에 노선이 셋까지라 카드마다 33KB쯤이다
+SHAPE_DIR = "shape"
+# 파일 이름에서 `|`를 대신하는 글자. `map.js`의 `형상_받기`와 같아야 한다
+SHAPE_SEP = "~"
+
+
+def _write_shapes(out: Path, shapes: dict[str, tuple[tuple[float, float], ...]]) -> int:
+    """형상 452개를 `out/shape/`에 한 줄짜리 JSON으로 쓴다. 파일 이름은 키를 URL 인코딩한 것이다.
+
+    키의 `|`만 `~`로 바꾼다 — 윈도우에서 파일 이름이 못 되는 글자가 그것 하나이고, `~`는 주소에서
+    그대로 나가는 글자라 자산 서버가 다시 인코딩하지 않는다. 한글은 브라우저가 알아서 인코딩하고
+    자산 서버가 되돌린다. `map.js`가 같은 규칙으로 주소를 만든다 — 두 곳에 한 줄씩이다.
+    """
+    if not shapes:
+        return 0
+    folder = out / SHAPE_DIR
+    folder.mkdir(parents=True, exist_ok=True)
+    for key, points in shapes.items():
+        body = json.dumps([[lat, lng] for lat, lng in points], separators=(",", ":"))
+        (folder / f"{key.replace('|', SHAPE_SEP)}.json").write_text(body, encoding="utf-8")
+    return len(shapes)
+
+
 def _write_table(
     out: Path,
     pair: branches.Pair,
@@ -169,6 +197,7 @@ def _write_table(
     after_siblings: dict[str, list[load.Route]],
     facts: notes.Facts,
     index: bundle_json.StopIndex,
+    shapes: dict[str, tuple[tuple[float, float], ...]],
 ) -> tuple[str, route_geometry.Geometry]:
     flipped = bool(alignment.flipped)
     # 뒤집어 맞댄 표의 「개편 후 상행」 칸에는 CSV의 하행이 들어간다 — 개편 전 상행과 같은 방향이다
@@ -186,7 +215,12 @@ def _write_table(
         after_siblings.get(pair.after.number, []),
     )
     # 지도는 상행만 그린다 — 표의 「개편 후 상행 정류장」 칸에 들어간 바로 그 목록을 쓴다(§7-3 Q7)
-    drawn = route_geometry.geometry(index, pair.before.up, after_up, up)
+    # 선도 「개편 후 상행」 칸과 같은 방향이어야 한다 — 뒤집어 맞댔으면 대체 노선의 하행 형상이다
+    lines = (
+        shapes.get(load.shape_key("before", pair.before.name, "up")),
+        shapes.get(load.shape_key("after", pair.after.name, "down" if flipped else "up")),
+    )
+    drawn = route_geometry.geometry(index, pair.before.up, after_up, up, lines)
     html = render.route_change_table(
         pair,
         up,
