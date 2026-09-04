@@ -137,8 +137,9 @@ test("규칙 상수는 rules 한 곳에 있다", () => {
   assert.equal(rules.WALK_RADIUS_MAX_M, 1000);
   assert.equal(rules.TRANSFER_WALK_M, 350);
   assert.equal(rules.MAX_TRANSFERS, 2);
-  assert.equal(rules.SECONDS_PER_STOP, 20);
+  assert.equal(rules.SECONDS_PER_STOP, 110);
   assert.equal(rules.WALK_SPEED_KMH, 4);
+  assert.equal(rules.WALK_DETOUR_FACTOR, 1.3);
   assert.equal(rules.PLACE_QUERY_MIN_LENGTH, 1);
   assert.equal(rules.PLACE_CACHE_SECONDS, 86400);
 });
@@ -148,12 +149,13 @@ test("규칙 값이 rules 밖에 박혀 있지 않다", () => {
   // 화면 문구("도보권 500m 안에")까지 포함해서다 — 규칙을 고칠 때 문구가 따로 낡는 것이 이 검사가 막는 것
   const 자리 = dirname(fileURLToPath(import.meta.url));
   // 한 자리 수(2·4·5·8)와 1000은 뺐다 — 셈이나 문자열("utf-8", 1km=1000m)에 흔히 나와
-  // 규칙 값과 구별할 수 없다. 나머지 여섯은 이 검사가 잡는다
+  // 규칙 값과 구별할 수 없다. 나머지 일곱은 이 검사가 잡는다
   const 규칙_값 = [
     rules.WALK_RADIUS_M,
     rules.WALK_RADIUS_STEP_M,
     rules.TRANSFER_WALK_M,
     rules.SECONDS_PER_STOP,
+    rules.WALK_DETOUR_FACTOR,
     rules.PLACE_CACHE_SECONDS,
     rules.PLACE_SEARCH_MARGIN_M,
   ];
@@ -168,7 +170,10 @@ test("규칙 값이 rules 밖에 박혀 있지 않다", () => {
       .replace(/\/\*[\s\S]*?\*\//g, " ")
       .replace(/\/\/.*$/gm, " ");
     for (const 값 of 규칙_값) {
-      const 박힌_숫자 = new RegExp(`(^|[^0-9.])${값}([^0-9.]|$)`);
+      // 소수점이 있는 값(1.3)이 섞여 있어 마침표를 문자 그대로 찾게 바꿔 둔다 —
+      // 그냥 넘기면 정규식의 `.`이 아무 글자나 받아 「1x3」까지 규칙 값으로 잡는다
+      const 새김 = String(값).split(".").join("[.]");
+      const 박힌_숫자 = new RegExp(`(^|[^0-9.])${새김}([^0-9.]|$)`);
       assert.ok(!박힌_숫자.test(글), `${이름}에 규칙 값 ${값}이 그대로 적혀 있다`);
     }
   }

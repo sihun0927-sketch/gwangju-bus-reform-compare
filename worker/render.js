@@ -12,7 +12,13 @@
  * 숫자를 문장에 적을 때도 상수는 `rules`에서 읽는다. 안내문에 500이라 적어 두면 도보권을 고칠 때
  * 규칙과 문구가 따로 낡는다.
  */
-import { MAX_TRANSFERS, SECONDS_PER_STOP, WALK_RADIUS_M, WALK_SPEED_KMH } from "./rules.js";
+import {
+  MAX_TRANSFERS,
+  SECONDS_PER_STOP,
+  WALK_DETOUR_FACTOR,
+  WALK_RADIUS_M,
+  WALK_SPEED_KMH,
+} from "./rules.js";
 
 const SECONDS_PER_MINUTE = 60;
 
@@ -66,7 +72,8 @@ const 지도_범례 = "개편 전 경로는 점선, 개편 후 경로는 실선�
  */
 const 각주 = 목록("notes", [
   `예상 시간은 정류장당 ${SECONDS_PER_STOP}초와 걷는 속도 ${WALK_SPEED_KMH}km/h로 잡은`
-    + " 추정치입니다. 배차 대기는 넣지 않았습니다.",
+    + ` 추정치입니다. 걷는 길은 아래 도보 합계(직선거리)의 ${WALK_DETOUR_FACTOR}배로 봤고,`
+    + " 배차 대기는 넣지 않았습니다.",
   `승차·하차 정류장은 고른 지점의 도보권 ${WALK_RADIUS_M}m 안에서 엔진이 고릅니다.`,
   "배차간격은 개편 전이 시가 공표한 값, 개편 후가 시 공표 총량을 노선별로 나눈 추정입니다."
     + " 예상 시간 계산에는 쓰지 않았습니다.",
