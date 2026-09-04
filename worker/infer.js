@@ -397,7 +397,7 @@ export function fragment(record, inferred) {
  * 없는 번호에도 200을 준다. htmx는 200이 아닌 응답을 끼우지 않아서, 404를 주면 카드에
  * 「계산중」이 영영 남는다.
  */
-export async function respond(name, env, options) {
+export async function respond(name, env = {}, options) {
   // `decodeURIComponent`는 망가진 주소에 **던진다**. 여기서 던지면 Worker가 500을 내고,
   // htmx는 200이 아닌 응답을 안 끼우므로 카드에 「계산중…」이 영영 남는다 — 조용한 멈춤이다
   let 이름 = name;
@@ -407,14 +407,20 @@ export async function respond(name, env, options) {
     이름 = name;
   }
   const record = answer(이름);
+  const 고른것 = pick(env);
   const inferred = record.갈래 === "개편후" ? await infer(record, env, options) : null;
   return new Response(fragment(record, inferred), {
     headers: {
       "content-type": "text/html; charset=utf-8",
-      // HTTP 머리는 Latin-1만 실을 수 있어 한글을 못 쓴다 — `x-bundle`과 같은 꼴로 적는다
+      // HTTP 머리는 Latin-1만 실을 수 있어 한글을 못 쓴다 — `x-bundle`과 같은 꼴로 적는다.
+      //
+      // **계산값으로 내려앉은 까닭까지 적는다.** 「키가 없다」와 「키는 있는데 표본이 다
+      // 버려졌다」는 고치는 방법이 전혀 다른데, 둘을 같은 `mode=computed`로 적었더니
+      // 배포된 화면에서 어느 쪽인지 가릴 수가 없었다
       "x-headway": inferred
         ? `mode=inferred samples=${inferred.표본.length} clamped=${inferred.가둠}`
-        : "mode=computed",
+        : `mode=computed reason=${고른것 ? "no-samples" : "no-key"}` +
+          (고른것 ? ` provider=${고른것.제공자} model=${고른것.모형}` : ""),
     },
   });
 }
