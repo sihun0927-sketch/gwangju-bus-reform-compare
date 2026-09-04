@@ -154,7 +154,7 @@ test("/headway/{노선}이 키 없이도 200과 조각을 준다", async () => {
   const res = await worker.fetch(new Request("https://x/headway/급행03"), env);
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type"), /text\/html/);
-  assert.equal(res.headers.get("x-headway"), "mode=computed");
+  assert.equal(res.headers.get("x-headway"), "mode=computed reason=no-key");
   assert.match(await res.text(), /headway-now/);
 });
 
@@ -394,7 +394,21 @@ test("추론이 붙으면 머리글이 표본 수와 가둔 수를 밝힌다", a
 
 test("검사가 진짜 API를 부르지 않는다 — 가짜 모형을 안 끼우면 키가 없어 부르지 않는다", async () => {
   assert.equal(await infer(기록, {}), null);
-  assert.equal((await respond("급행03", {})).headers.get("x-headway"), "mode=computed");
+  assert.match((await respond("급행03", {})).headers.get("x-headway"), /^mode=computed reason=no-key/);
+});
+
+test("계산값으로 내려앉은 까닭을 머리글이 밝힌다 — 고치는 방법이 다르기 때문이다", async () => {
+  // 키가 아예 없을 때
+  const 키없음 = await respond("급행03", {});
+  assert.equal(키없음.headers.get("x-headway"), "mode=computed reason=no-key");
+
+  // 키는 있는데 표본이 다 버려졌을 때(할당량·시간 초과). 여기서 진짜로 부르지는 않는다
+  const 다실패 = 가짜([new Error("429 quota")]);
+  const 표본없음 = await respond("급행03", { [KEY_ENV]: "x".repeat(40) }, { client: 다실패, samples: 2 });
+  const 머리 = 표본없음.headers.get("x-headway");
+  assert.match(머리, /^mode=computed reason=no-samples/);
+  assert.match(머리, /provider=\w+ model=/);
+  assert.notEqual(머리, 키없음.headers.get("x-headway"), "둘이 같으면 가릴 수가 없다");
 });
 
 test("다른 경로는 전과 같이 돈다", async () => {
