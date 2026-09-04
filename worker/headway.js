@@ -43,6 +43,13 @@ const PREDECESSORS = (() => {
   return back;
 })();
 
+/** 종류마다 노선이 몇 개인가. 「급행 4개 노선의 가운데」처럼 셀 수 있게 말하려고 센다. */
+const KIND_COUNT = (() => {
+  const 셈 = new Map();
+  for (const row of Object.values(table.노선)) 셈.set(row.종류, (셈.get(row.종류) ?? 0) + 1);
+  return 셈;
+})();
+
 /** (종류, 번호) → 개편 후 노선 이름. 종류를 안 적으면 급행 아닌 것을 고른다(ADR-0006). */
 const BY_DIGITS = (() => {
   const index = new Map();
@@ -186,6 +193,7 @@ function forRoute(name, asked) {
       노선길이: r2(row.노선길이),
       왕복시간: r1(row.왕복시간),
       종류중앙배차: r1(row.종류중앙배차),
+      종류노선수: KIND_COUNT.get(row.종류) ?? 0,
       종류대비: r2(row.배차간격 / row.종류중앙배차),
       회랑변화: r2(row.회랑변화),
     },
