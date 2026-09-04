@@ -15,7 +15,7 @@ import test from "node:test";
 import { answer } from "./headway.js";
 import {
   KEY_ENV, MODEL, MODEL_ENV, PROVIDERS, REASON_MAX, SAMPLES, fragment, infer, looksLikeKey,
-  median, pick, respond, settle,
+  median, pick, respond, settle, why,
 } from "./infer.js";
 import worker from "./index.js";
 import { readFileSync } from "node:fs";
@@ -319,6 +319,35 @@ test("?why=1은 까닭 한 줄만 준다 — 경로 줄에 조각 전체는 넘�
   const client = 가짜([답(13, 15, "밴드 아래쪽이 수요에 맞는다")]);
   const 추론 = await respond("급행03", {}, { client, samples: 1 }, new URLSearchParams("why=1"));
   assert.match(await 추론.text(), /밴드 아래쪽이 수요에 맞는다/);
+});
+
+test("까닭 한 줄이 넓은 말 대신 센 것을 적는다", async () => {
+  // 「수요」·「중앙」·「총량」은 처음 보는 사람에게 무엇을 센 것인지 안 알려 준다
+  const 줄 = why(answer("급행03"), null);
+  for (const 넓은말 of ["수요", "총량", "같은 종류 중앙"]) {
+    assert.ok(!줄.includes(넓은말), `「${넓은말}」이 남았다: ${줄}`);
+  }
+  assert.match(줄, /하루 \d+번\(상·하행 합계\)/, "무엇을 몇 번 센 것인지 적는다");
+  assert.match(줄, /급행 노선 4개의 가운데 배차/, "몇 개 중의 가운데인지 적는다");
+  assert.match(줄, /하루 운행횟수 합계\(8394→9355번\)/, "무엇의 합계인지 적는다");
+  assert.match(줄, /추정입니다[.]$/, "추정이라고 끝맺는다");
+});
+
+test("확신이 낮은 노선은 까닭 줄도 한 값을 안 부른다", () => {
+  // 밴드 한가운데를 지어내 견주면 없는 값을 말하는 셈이다
+  const 갈림 = answer("간선18");
+  assert.equal(갈림.배차간격, null);
+  const 줄 = why(갈림, null);
+  assert.match(줄, /\d+~\d+분으로 갈려/, 줄);
+  assert.ok(!/이 노선은 \d+분이라/.test(줄), `점 추정을 지어냈다: ${줄}`);
+});
+
+test("노선 이름을 주어로 세우지 않는다 — 숫자 뒤 조사를 코드가 못 맞힌다", () => {
+  // 「운림54이/가」가 숫자 읽기에 따라 갈린다. 상자가 그 줄 곁에 있으므로 주어는 이미 분명하다
+  for (const n of ["간선54", "지선10", "급행03", "228"]) {
+    const 줄 = why(answer(n), null);
+    assert.ok(!줄.startsWith(n), `${n}로 문장을 시작했다: ${줄.slice(0, 30)}`);
+  }
 });
 
 test("?why=1도 없는 번호에 200과 안내를 준다", async () => {
