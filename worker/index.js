@@ -52,7 +52,7 @@ export default {
     // 이쪽은 조각이다 — 카드의 「계산중」 자리를 대신한다. 자기 머리를 붙이므로 `htmlResponse`를
     // 안 거친다(추론을 몇 표본으로 했는지 `x-headway`에 싣는다)
     if (pathname.startsWith(HEADWAY_PREFIX)) {
-      return headwayFragment(pathname.slice(HEADWAY_PREFIX.length), env);
+      return headwayFragment(pathname.slice(HEADWAY_PREFIX.length), env, undefined, searchParams);
     }
     if (pathname.startsWith(JOURNEY_PREFIX)) {
       // 키가 번들과 안 맞으면 `journey`가 404와 한 줄 문구를 준다. htmx는 200이 아닌 응답을

@@ -341,7 +341,8 @@ export async function infer(
   );
 }
 
-const 분 = (x) => `${Number.isInteger(x) ? x : x.toFixed(1)}분`;
+// **분은 정수로 적는다.** 추정에 소수를 보이면 없는 정밀도를 주장하는 셈이다
+const 분 = (x) => `${Math.round(x)}분`;
 const 대 = (x) => `${Number.isInteger(x) ? x : x.toFixed(1)}대`;
 
 /**
@@ -365,7 +366,7 @@ export function fragment(record, inferred) {
   const 추론함 = inferred !== null && inferred !== undefined;
   const 머리 =
     값.배차간격 === null
-      ? `${record.밴드[0]}~${분(record.밴드[1])}`
+      ? `${Math.round(record.밴드[0])}~${분(record.밴드[1])}`
       : 분(값.배차간격);
   const 까닭 = [
     값.이유 ||
@@ -374,7 +375,7 @@ export function fragment(record, inferred) {
         : `개편 전 ${record.대체한노선.join(" · ") || "대응 노선"}에서 물려받은 수요를 ${record.근거.방향칸}개 방향으로 나눈 값입니다.`),
     `같은 종류 중앙 ${분(record.근거.종류중앙배차)}의 ${record.근거.종류대비}배 · 등급 「${record.등급}」.`,
     추론함
-      ? `${값.표본.length}번 물어 ${값.표본.join(" · ")}이 나왔고 그 가운데 값입니다. 밴드 ${record.밴드[0]}~${분(record.밴드[1])} 밖으로는 나가지 않습니다.`
+      ? `${값.표본.length}번 물어 ${값.표본.join(" · ")}이 나왔고 그 가운데 값입니다. 밴드 ${Math.round(record.밴드[0])}~${분(record.밴드[1])} 밖으로는 나가지 않습니다.`
       : "지금은 추론 없이 계산값을 그대로 보이고 있습니다.",
     "시가 발표한 노선별 배차간격이 아니라 총량에서 나눈 추정입니다.",
   ].join(" ");
@@ -392,12 +393,32 @@ export function fragment(record, inferred) {
 }
 
 /**
+ * 까닭 한 줄. 경로 카드의 「?」 상자가 이것만 받아 간다.
+ *
+ * 조각 전체(`fragment`)는 배차·적합·대수까지 담아 경로 줄에는 넘친다. 여기서는 **왜 그 수인지**
+ * 한 문장만 낸다 — 모형이 답했으면 그 이유를, 아니면 계산이 그렇게 나온 까닭을.
+ */
+export function why(record, inferred) {
+  if (!record.찾음 || record.갈래 !== "개편후") return "이 노선은 배차간격을 낼 수 없습니다.";
+  if (inferred?.이유) return inferred.이유;
+  const 근 = record.근거;
+  const 앞 =
+    record.대체한노선.length > 0
+      ? `개편 전 ${record.대체한노선.join(" · ")}의 수요를 ${근.방향칸}개 방향으로 나눈 값`
+      : `비교표에 대응 노선이 없는 신설 노선이라 지나는 길의 수요로 잡은 값`;
+  return (
+    `${앞}입니다. 같은 종류 중앙 ${Math.round(근.종류중앙배차)}분의 ${근.종류대비}배이고,` +
+    ` 시가 공표한 총량(운행횟수 ${record.망.운행횟수[0]}→${record.망.운행횟수[1]}회)을 나눈 추정입니다.`
+  );
+}
+
+/**
  * `GET /headway/{노선}` — 카드가 htmx로 부르는 조각 자리.
  *
  * 없는 번호에도 200을 준다. htmx는 200이 아닌 응답을 끼우지 않아서, 404를 주면 카드에
  * 「계산중」이 영영 남는다.
  */
-export async function respond(name, env = {}, options) {
+export async function respond(name, env = {}, options, params) {
   // `decodeURIComponent`는 망가진 주소에 **던진다**. 여기서 던지면 Worker가 500을 내고,
   // htmx는 200이 아닌 응답을 안 끼우므로 카드에 「계산중…」이 영영 남는다 — 조용한 멈춤이다
   let 이름 = name;
@@ -409,7 +430,12 @@ export async function respond(name, env = {}, options) {
   const record = answer(이름);
   const 고른것 = pick(env);
   const inferred = record.갈래 === "개편후" ? await infer(record, env, options) : null;
-  return new Response(fragment(record, inferred), {
+  // `?why=1`은 까닭 한 줄만 받아 가는 갈래다 — 경로 카드의 「?」 상자가 쓴다
+  const 몸 =
+    params?.get("why") === "1"
+      ? `<p class="why-line">${벗김(why(record, inferred))}</p>`
+      : fragment(record, inferred);
+  return new Response(몸, {
     headers: {
       "content-type": "text/html; charset=utf-8",
       // HTTP 머리는 Latin-1만 실을 수 있어 한글을 못 쓴다 — `x-bundle`과 같은 꼴로 적는다.
