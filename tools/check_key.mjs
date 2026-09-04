@@ -16,6 +16,11 @@ import { dirname, join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+// **판정의 주인은 코드다.** 앞머리 표는 사람이 읽을 이름을 붙이는 데만 쓴다 — 한 번 어긋난 적이
+// 있다: `AQ.`를 몰라 「모르는 꼴」이라 적었는데 `worker/infer.js`는 그 키를 멀쩡히 쓰고 있었다.
+// 그 뒤로 「누가 쓰이나」는 여기서 정하지 않고 `pick`에게 묻는다
+import { PROVIDERS, looksLikeKey, pick } from "../worker/infer.js";
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const 파일들 = [".dev.vars", ".env", ".env.local"];
 
@@ -45,13 +50,19 @@ function 가리기(값) {
   if (!다듬) return { 상태: "빈칸" };
   if (/[가-힣\s]/.test(다듬)) return { 상태: "자리만 잡혀 있음", 앞: 다듬.slice(0, 앞머리) };
   const 맞는것 = 모양.find((m) => 다듬.startsWith(m.앞));
-  if (!맞는것) return { 상태: "모르는 꼴", 앞: 다듬.slice(0, 앞머리), 길이: 다듬.length };
-  if (다듬.length < 40) {
-    return { 상태: "너무 짧다 — 잘려 붙었을 수 있다", 앞: 다듬.slice(0, 앞머리), 길이: 다듬.length };
+  // 코드가 쓸 수 있다고 보는가 — 이것이 판정이고, 아래 이름은 사람이 읽을 이름일 뿐이다
+  const 쓸수있나 = looksLikeKey(다듬);
+  if (!쓸수있나) {
+    return {
+      상태: 맞는것 ? `${맞는것.이름}처럼 보이지만 코드가 안 받는다` : "코드가 안 받는 꼴",
+      앞: 다듬.slice(0, 앞머리),
+      길이: 다듬.length,
+      흠: 흠찾기(값, 다듬),
+    };
   }
   return {
-    상태: 맞는것.이름,
-    제공자: 맞는것.제공자,
+    상태: 맞는것 ? 맞는것.이름 : "아는 앞머리는 아니지만 코드는 받는다",
+    쓸수있음: true,
     앞: 다듬.slice(0, 앞머리),
     길이: 다듬.length,
     흠: 흠찾기(값, 다듬),
@@ -83,9 +94,10 @@ function 흠찾기(원래, 다듬) {
   if (다듬.startsWith('"') || 다듬.startsWith("'") || 다듬.endsWith('"') || 다듬.endsWith("'")) {
     흠.push("따옴표");
   }
+  // 점은 Google 토큰(`AQ.…`)에 정상으로 들어 있다. 흠으로 세면 멀쩡한 키에 경고가 뜬다
   const 셈 = { 공백: 0, 한글: 0, "그 밖": 0 };
   for (const c of 다듬) {
-    if (/[A-Za-z0-9_-]/.test(c)) continue;
+    if (/[A-Za-z0-9._-]/.test(c)) continue;
     if (/\s/.test(c)) 셈.공백 += 1;
     else if (/[가-힣]/.test(c)) 셈.한글 += 1;
     else 셈["그 밖"] += 1;
@@ -145,22 +157,25 @@ function 읽기(경로) {
     if (자리 < 0) continue;
     const 이름 = 다듬.slice(0, 자리).trim();
     const 값 = 다듬.slice(자리 + 1);
+    const 값다듬 = 값.trim().replace(/^["']|["']$/g, "");
     if (/^[A-Z0-9_]*BASE_URL$/.test(이름)) {
-      밑주소[이름] = 값.trim().replace(/^["']|["']$/g, "");
+      밑주소[이름] = 값다듬;
+      if (!(이름 in process.env)) 설정[이름] = 값다듬;
       continue;
     }
     if (!/KEY|TOKEN|SECRET/i.test(이름)) continue;
-    찾은것.push({ 이름, 값: 값.trim().replace(/^["']|["']$/g, ""), ...가리기(값) });
+    if (!(이름 in process.env)) 설정[이름] = 값다듬;
+    찾은것.push({ 이름, 값: 값다듬, ...가리기(값) });
   }
   return 찾은것;
 }
 
 /** 제공자별 밑주소(있으면). 사내 게이트웨이를 쓰는 경우가 있다. */
 const 밑주소 = {};
-const 밑주소이름 = { openai: "OPENAI_BASE_URL", anthropic: "ANTHROPIC_BASE_URL" };
+const 밑주소이름 = { 모형: "MODEL_BASE_URL" };
 
 const 살아있는지본다 = process.argv.includes("--live");
-const 판정들 = new Set();
+const 설정 = { ...process.env };
 const 쓸것 = [];
 let 본파일 = 0;
 for (const 이름 of 파일들) {
@@ -176,29 +191,33 @@ for (const 이름 of 파일들) {
     const 꼬리 = k.앞 ? ` — ${k.앞}… (${k.길이 ?? "?"}자)` : "";
     console.log(`  ${k.이름.padEnd(20)} ${k.상태}${꼬리}`);
     if (k.흠?.length) console.log(`  ${" ".repeat(20)} ⚠ 섞여 든 것: ${k.흠.join(" · ")}`);
-    if (k.제공자) {
-      판정들.add(k.제공자);
-      쓸것.push(k);
-    }
+    if (k.쓸수있음) 쓸것.push(k);
   }
 }
 if (본파일 === 0) {
   console.log(`${파일들.join(" · ")} 중 어느 것도 없다.`);
 }
 console.log("");
-if (판정들.size === 0) {
+// 「어느 것이 실제로 쓰이나」는 코드에게 묻는다. 여기서 따로 세면 또 어긋난다
+const 고름 = pick(설정);
+if (!고름) {
   console.log("판정: 쓸 수 있는 키가 아직 없다. `.dev.vars`의 자리 값을 진짜 키로 바꾸면 된다.");
+  console.log(`  코드가 보는 이름 차례: ${PROVIDERS.map((p) => p.키).join(" → ")}`);
   process.exitCode = 1;
 } else {
-  console.log(`판정: ${[...판정들].join(" + ")}`);
+  console.log(`판정: **${고름.제공자}** — 모형 ${고름.모형}`);
+  console.log(`  코드가 보는 이름 차례: ${PROVIDERS.map((p) => p.키).join(" → ")} (앞엣것이 이긴다)`);
   console.log("키 자체는 어디에도 안 찍었다 — 앞머리 여덟 글자와 길이만 봤다.");
 }
 
 if (살아있는지본다 && 쓸것.length > 0) {
   console.log("\n진짜로 물어본다 (모형 목록 — 토큰을 안 쓰므로 돈이 안 든다)");
   for (const k of 쓸것) {
-    const 주소 = 밑주소[밑주소이름[k.제공자]] ?? "";
-    const 끝 = await 살아있나(k.제공자, k.값, 주소);
+    // 어느 창구로 두드릴지는 코드가 그 키에 붙여 둔 제공자를 따른다
+    const 붙은것 = PROVIDERS.find((p) => p.키 === k.이름);
+    const 제공자 = 붙은것 ? (붙은것.밑주소 ? "openai" : "openai") : "openai";
+    const 주소 = 설정[밑주소이름.모형] || 붙은것?.밑주소 || "";
+    const 끝 = await 살아있나(제공자, k.값, 주소);
     const 어디 = 주소 ? ` @ ${주소}` : "";
     if (끝.됨) {
       console.log(`  ${k.이름}${어디}: 살아 있다 · 모형 ${끝.모형수}개`);
