@@ -78,7 +78,7 @@ function 되살린다(id) {
     if (!leg) return null;
     legs.push(leg);
   }
-  const journey = 잰다(legs, from, to);
+  const journey = 잰다(network, legs, from, to);
   return 규칙에_맞나(journey) ? { network, journey, from, to } : null;
 }
 
@@ -135,9 +135,10 @@ function 구간(network, boardId, name, alightId) {
  * 구간 목록에 도보를 달고 `rank`의 `measure`로 지표를 붙인다 — 카드 둘이 같은 자로 재게.
  *
  * 도보권 후보에만 있던 `walk`(지점까지 도보 m)를 첫 승차와 끝 하차에 새로 단다. 거리는 다시
- * 재지만 `rank`가 쓴 것과 같은 `metresBetween`이라 값이 같다.
+ * 재지만 `rank`가 쓴 것과 같은 `metresBetween`이라 값이 같다. `network`는 `measure`가 배차
+ * 대기를 꺼내는 데 쓴다 — 카드에 안 나가는 값이지만 여기서도 같은 자로 재 둔다.
  */
-function 잰다(legs, from, to) {
+function 잰다(network, legs, from, to) {
   const 붙인 = legs.map((leg, i) => ({
     ...leg,
     board: i === 0 ? { ...leg.board, walk: metresBetween(from, leg.board) } : leg.board,
@@ -149,7 +150,7 @@ function 잰다(legs, from, to) {
   const transferWalks = 붙인
     .slice(0, -1)
     .map((leg, i) => metresBetween(leg.alight, 붙인[i + 1].board));
-  return measure({ legs: 붙인, transferWalks, transfers: 붙인.length - 1 });
+  return measure({ legs: 붙인, transferWalks, transfers: 붙인.length - 1 }, network);
 }
 
 const 지점_적기 = ({ lat, lng }) => `${lat}${지점_나눔}${lng}`;

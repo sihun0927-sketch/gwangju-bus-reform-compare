@@ -140,6 +140,8 @@ test("규칙 상수는 rules 한 곳에 있다", () => {
   assert.equal(rules.SECONDS_PER_STOP, 110);
   assert.equal(rules.WALK_SPEED_KMH, 4);
   assert.equal(rules.WALK_DETOUR_FACTOR, 1.3);
+  assert.equal(rules.HEADWAY_WAIT_SHARE, 0.5);
+  assert.equal(rules.HEADWAY_UNKNOWN_MIN, 20);
   assert.equal(rules.PLACE_QUERY_MIN_LENGTH, 1);
   assert.equal(rules.PLACE_CACHE_SECONDS, 86400);
 });
@@ -148,8 +150,8 @@ test("규칙 값이 rules 밖에 박혀 있지 않다", () => {
   // 값이 같기만 하면 앞 검사는 통과하므로, 「rules에서 **읽는지**」는 소스를 훑어야 알 수 있다.
   // 화면 문구("도보권 500m 안에")까지 포함해서다 — 규칙을 고칠 때 문구가 따로 낡는 것이 이 검사가 막는 것
   const 자리 = dirname(fileURLToPath(import.meta.url));
-  // 한 자리 수(2·4·5·8)와 1000은 뺐다 — 셈이나 문자열("utf-8", 1km=1000m)에 흔히 나와
-  // 규칙 값과 구별할 수 없다. 나머지 일곱은 이 검사가 잡는다
+  // 한 자리 수(2·4·5·8)와 1000·20·0.5는 뺐다 — 셈이나 문자열("utf-8", 1km=1000m, 1분=60초)에
+  // 흔히 나와 규칙 값과 구별할 수 없다. 나머지 일곱은 이 검사가 잡는다
   const 규칙_값 = [
     rules.WALK_RADIUS_M,
     rules.WALK_RADIUS_STEP_M,
