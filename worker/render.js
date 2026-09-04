@@ -68,7 +68,8 @@ const 각주 = 목록("notes", [
   `예상 시간은 정류장당 ${SECONDS_PER_STOP}초와 걷는 속도 ${WALK_SPEED_KMH}km/h로 잡은`
     + " 추정치입니다. 배차 대기는 넣지 않았습니다.",
   `승차·하차 정류장은 고른 지점의 도보권 ${WALK_RADIUS_M}m 안에서 엔진이 고릅니다.`,
-  "배차간격 공표값은 개편 전 노선에만 있습니다. 예상 시간 계산에 쓰지 않았습니다.",
+  "배차간격은 개편 전이 시가 공표한 값, 개편 후가 시 공표 총량을 노선별로 나눈 추정입니다."
+    + " 예상 시간 계산에는 쓰지 않았습니다.",
 ]);
 
 /**
@@ -108,10 +109,17 @@ const 상태 = (journey) => {
 /**
  * 배차간격 한 줄. 번들에는 **분 단위 숫자**가 있고 단위는 여기서 붙인다 (CONTEXT 「경로 줄」).
  *
- * 시가 공표한 값이 없으면 「정보 없음」이다 — 개편 후 노선 전부와 개편 전 순환01이 그렇다.
+ * 개편 전은 시가 공표한 값이고 **개편 후는 우리가 나눈 추정**이다(ADR-0010). 추정에는 「추정」을
+ * 붙인다 — 같은 칸에 나란히 서므로 안 붙이면 시민이 둘을 같은 것으로 읽는다.
+ * 값이 아예 없으면 「정보 없음」이다(지금은 개편 전 순환01 하나뿐).
  */
 const 배차_없음 = "정보 없음";
-const 배차_값 = (v) => (typeof v === "number" ? `${v}분` : 배차_없음);
+const 배차_값 = (v, 추정 = false) => {
+  if (typeof v !== "number") return 배차_없음;
+  // 소수 한 자리까지만. 추정값은 12.6처럼 떨어지지 않는 수라 그대로 두면 자릿수가 튄다
+  const 분 = Number.isInteger(v) ? v : Math.round(v * 10) / 10;
+  return 추정 ? `약 ${분}분(추정)` : `${분}분`;
+};
 
 /**
  * 노선망 하나의 카드. `journey`가 없으면 머리가 「경로 없음」이고 안이 한 줄이다.
@@ -262,7 +270,7 @@ function 핀_조각(network, 핀) {
   }
   const 아래 = 핀.leg
     ? `<span class="route"><b class="chip">${노선_이름(network, 핀.leg.route)}</b></span>`
-      + `<span class="sub">배차간격 ${배차_값(network.headway(핀.leg.route))}`
+      + `<span class="sub">배차간격 ${배차_값(network.headway(핀.leg.route), network.headwayEstimated(핀.leg.route))}`
       + ` · ${핀.leg.stopsPassed}개 정류장</span>`
     : 핀.환승도보 === undefined
       ? ""
@@ -298,7 +306,7 @@ function 지표(network, journey) {
     ["예상 시간", 분(journey.seconds)],
     ["환승", journey.transfers ? `${journey.transfers}회` : "없음"],
     ["노선번호", 구간별((leg) => 노선_이름(network, leg.route))],
-    ["배차간격", 구간별((leg) => 배차_값(network.headway(leg.route)))],
+    ["배차간격", 구간별((leg) => 배차_값(network.headway(leg.route), network.headwayEstimated(leg.route)))],
     ["도보 합계", 도보_합계(journey)],
   ];
   return '<dl class="metrics">'
