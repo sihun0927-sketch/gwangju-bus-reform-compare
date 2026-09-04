@@ -28,7 +28,9 @@ from .load import Replacement, Route, find_after
 BEFORE_BRANCH_PROMPT = "개편 전 방면을 고르세요"
 REPLACEMENT_PROMPT = "대체 노선을 고르세요"
 AFTER_BRANCH_PROMPT = "개편 후 방면을 고르세요"
-NO_REPLACEMENT = "대체 노선 없음"
+# 대체 노선이 하나도 없는 노선에 적는 말. 두암181 하나뿐이다 — 「대체 노선 없음」이라 적으면
+# 「대체가 없을 뿐 노선은 남는다」로 읽힌다. 이 노선은 개편 후 노선안에 아예 없다(2026-09-04)
+NO_REPLACEMENT = "노선 사라짐"
 
 BEFORE_BRANCH = "before-branch"
 REPLACEMENT = "replacement"
