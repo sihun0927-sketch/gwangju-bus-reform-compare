@@ -76,7 +76,10 @@ function 노선망(key, label) {
     along: (route, side, from, to) =>
       (bundle.route_stops[route]?.[side] ?? []).slice(from, to + 1),
     /** 배차간격(분). 시가 공표한 값이 있는 개편 전 110개만 숫자이고 나머지는 `null`이다. */
+    // 값과 함께 **어디서 온 값인지**를 준다. 개편 전은 시가 공표한 것, 개편 후는 우리가
+    // 나눈 추정이다(ADR-0010) — 화면이 그것을 밝혀야 시민이 둘을 안 헷갈린다
     headway: (route) => bundle.routes[route].headway,
+    headwayEstimated: (route) => bundle.routes[route].estimated === true,
   };
 }
 

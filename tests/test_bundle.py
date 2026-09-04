@@ -83,19 +83,34 @@ def test_routes가_111더하기_119이고_노선망_표시가_있다(bundle: dic
     assert 노선["after:간선18"]["name"] == "간선18"
 
 
-def test_배차간격은_개편_전에만_붙는다(bundle: dict) -> None:
-    """시가 공표한 값이 개편 전에만 있다. 빈칸을 화면이 「정보 없음」으로 읽는다(CONTEXT 「경로 줄」)."""
+def test_배차간격은_개편_전이_공표값_개편_후가_추정값이다(bundle: dict) -> None:
+    """같은 칸에 출처가 다른 값이 선다. `estimated`가 그것을 가른다(CONTEXT 「경로 줄」·ADR-0010).
+
+    개편 전은 시가 공표한 값(정수), 개편 후는 총량을 노선별로 나눈 추정(소수 가능)이다.
+    화면은 추정에만 「추정」을 붙인다 — 안 가르면 시민이 추정을 공표값으로 읽는다.
+    """
     노선 = bundle["routes"]
     붙은_것 = {k: v["headway"] for k, v in 노선.items() if v["headway"] is not None}
-    assert len(붙은_것) == 110, "배차 CSV 110행"
-    assert all(k.startswith("before:") for k in 붙은_것), "개편 후에는 붙지 않는다"
-    assert all(isinstance(v, int) and v > 0 for v in 붙은_것.values()), "분 단위 숫자다"
+    공표 = {k: v for k, v in 붙은_것.items() if not 노선[k]["estimated"]}
+    추정 = {k: v for k, v in 붙은_것.items() if 노선[k]["estimated"]}
 
-    # 이름이 두 노선망에 다 있는 노선. 노선망을 안 가리고 이름으로 찾으면 개편 후가 개편 전 값을 문다
-    assert 노선["before:228(구151.화순사평)"]["headway"] is not None
-    assert 노선["after:228"]["headway"] is None
-    # 개편 전 111행 중 순환01 한 행만 배차 CSV에 없다
+    assert len(공표) == 110, "배차 CSV 110행"
+    assert all(k.startswith("before:") for k in 공표), "공표값은 개편 전에만 있다"
+    assert all(isinstance(v, int) and v > 0 for v in 공표.values()), "분 단위 정수다"
+
+    assert len(추정) == 119, "개편 후 노선안 119행 — 방면이 갈라져도 번호의 값을 나눠 쓴다"
+    assert all(k.startswith("after:") for k in 추정), "추정은 개편 후에만 있다"
+    assert all(v > 0 for v in 추정.values()), "모두 값이 있다 — 개편 후에 빈칸은 없다"
+    # 방면 둘인 지선97은 번호 단위 값을 나눠 쓴다
+    assert 노선["after:지선97"]["headway"] == 노선["after:지선97(빛그린산단출근)"]["headway"]
+
+    # 이름이 두 노선망에 다 있는 노선. 노선망을 안 가리고 이름으로 찾으면 서로의 값을 문다
+    assert 노선["before:228(구151.화순사평)"]["estimated"] is False
+    assert 노선["after:228"]["estimated"] is True
+    assert 노선["before:228(구151.화순사평)"]["headway"] != 노선["after:228"]["headway"]
+    # 개편 전 111행 중 순환01 한 행만 배차 CSV에 없다 — **없는 것**과 **추정한 것**은 다르다
     assert 노선["before:순환01"]["headway"] is None
+    assert 노선["before:순환01"]["estimated"] is False
     assert 노선["before:좌석02"]["headway"] == 7
 
 

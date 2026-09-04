@@ -108,14 +108,18 @@ def build(
             + "\n  ".join(missing)
         )
 
-    # 번들은 `out/`을 지우기 전에 만들어 본다 — 이름을 못 이으면 지난번 조각을 남긴 채 멈춘다
-    made = bundle_json.make(before, after, stops, canon, renames, additions, headways)
     # 노선 지도는 번들과 같은 이름 잇기를 쓴다. 다만 추정 좌표는 안 받는다(ADR-0007, `route_geometry`)
     index = bundle_json.stop_index(stops, canon, renames)
     # 지도의 선은 정류장 직선이 아니라 차도 경로다(ADR-0009). 없으면 빈 표이고 직선으로 돌아간다
     shapes = load.read_shapes(source)
-    # 배차간격 추정도 `out/`을 지우기 전에 끝내 둔다 — 원천이 어긋나면 지난번 조각을 남긴 채 멈춘다
+    # 배차간격 추정도 `out/`을 지우기 전에 끝내 둔다 — 원천이 어긋나면 지난번 조각을 남긴 채 멈춘다.
+    # **번들보다 먼저다** — 개편 후 노선의 배차간격 칸을 이 추정이 채운다
     estimated = headway.estimate(before, after, replacements, headways_full, index, renames)
+    # 번들은 `out/`을 지우기 전에 만들어 본다 — 이름을 못 이으면 지난번 조각을 남긴 채 멈춘다
+    made = bundle_json.make(
+        before, after, stops, canon, renames, additions, headways,
+        {e.name: e.headway for e in estimated.routes},
+    )
 
     table = terminus_align.read_table(_align_table_path(source, align_table))
     alignments, unwritten = terminus_align.align(pairs, table)

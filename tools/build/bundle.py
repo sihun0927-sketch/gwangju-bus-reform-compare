@@ -70,7 +70,7 @@ class Counts:
     route_stops: int    # 노선 × 방향 × 순번 × STATION_NUM 줄 수
     transfers: int      # 환승 도보 안 정류장 쌍 줄 수
     route_links: int    # 노선 쌍당 최단 환승 지점 줄 수
-    headways: int       # 배차간격이 붙은 노선 — 개편 전 110(순환01 빠짐), 개편 후 0
+    headways: int       # 배차간격이 붙은 노선 — 개편 전은 공표값, 개편 후는 추정값
 
 
 @dataclass(frozen=True)
@@ -145,6 +145,7 @@ def make(
     renames: RenameDict,
     additions: list[str],
     headways: dict[str, int],
+    estimates: dict[str, float],
 ) -> Bundle:
     """노선안·`stops.csv`·명칭 사전·신설 정류소·배차간격 → 번들 한 장.
 
@@ -169,8 +170,18 @@ def make(
             rid = route_id(network, r.name)
             if rid in routes:
                 raise BuildError(f"노선안에 같은 노선 이름이 두 번 있습니다: {rid}")
-            headway = headways.get(r.name) if network == BEFORE else None
-            routes[rid] = {"network": network, "name": r.name, "headway": headway}
+            # 개편 전은 시가 공표한 값, 개편 후는 **우리가 나눈 추정값**이다(ADR-0010).
+            # 어느 쪽인지 함께 실어야 화면이 「추정」이라 밝힐 수 있다 — 둘을 같은 칸에 담고
+            # 출처를 안 적으면 시민이 추정을 공표값으로 읽는다
+            if network == BEFORE:
+                headway, estimated = headways.get(r.name), False
+            else:
+                # 추정은 방면을 합친 번호 단위다. 지선97 두 방면이 같은 값을 쓴다
+                headway, estimated = estimates.get(r.number), True
+            routes[rid] = {
+                "network": network, "name": r.name,
+                "headway": headway, "estimated": estimated and headway is not None,
+            }
             plans[rid] = {UP: r.up, DOWN: r.down}
 
     linked, unlinked = _link(plans, routes, index, set(additions), order)
