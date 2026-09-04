@@ -125,12 +125,18 @@ export function looksLikeKey(value) {
 const FIT_SWING = 2;
 
 /**
- * 한 번 부르는 데 줄 시간(ms)과 생각+답에 줄 토큰.
+ * 시간 상한 둘. **카드가 답하는 데 걸리는 시간은 이 둘이 정한다.**
  *
- * 12초는 시민이 「계산중…」을 보며 기다릴 만한 끝이다. 넘으면 그 표본을 버리고, 다 버려지면
- * 빌드가 낸 값을 그대로 보인다 — 오래 도는 것보다 조금 덜 다듬어진 값이 낫다.
+ * 표본 하나가 늦는 것과 카드가 늦는 것은 다른 문제다. 그래서 상한도 둘로 나눈다 —
+ * 표본 하나에 `TIMEOUT_MS`, 카드 전체에 `DEADLINE_MS`. 마감이 되면 **그때까지 온 표본으로**
+ * 답하고, 하나도 안 왔으면 빌드가 낸 계산값을 보인다.
+ *
+ * 재시도는 안 한다(`maxRetries: 0`). 표본을 셋 던지는 것이 이미 재시도이고, 여기서 또 하면
+ * 늦은 표본 하나가 카드를 두 배로 붙든다 — 실제로 12초 상한이 24초가 되는 것을 봤다.
  */
-const TIMEOUT_MS = 12_000;
+const TIMEOUT_MS = 9_000;
+// 마감은 표본 상한보다 조금만 뒤다 — 상한에 걸린 표본이 정리될 틈만 준다
+const DEADLINE_MS = TIMEOUT_MS + 600;
 const MAX_TOKENS = 8_000;
 
 /** 「?」 상자에 들어갈 이유의 길이 상한(글자). 상자는 짧아야 읽힌다. */
@@ -277,8 +283,29 @@ export function open(key, baseURL = "") {
     apiKey: key,
     baseURL: baseURL || undefined,
     timeout: TIMEOUT_MS,
-    maxRetries: 1,
+    // 재시도 없음 — 위 주석 참고. 표본 셋이 이미 재시도다
+    maxRetries: 0,
   });
+}
+
+/**
+ * 마감까지만 기다린다. 늦은 것은 `null`로 친다.
+ *
+ * `Promise.allSettled`만 쓰면 **가장 늦은 표본이 카드 전체를 붙든다.** 시민은 셋이 다 오기를
+ * 기다릴 이유가 없다 — 둘만 와도 가운데 값은 나오고, 하나도 안 와도 계산값이 있다.
+ */
+async function 마감까지(약속들, ms) {
+  let 타이머;
+  const 마감 = new Promise((풀기) => {
+    타이머 = setTimeout(() => 풀기("마감"), ms);
+  });
+  try {
+    return await Promise.all(
+      약속들.map((p) => Promise.race([p.catch(() => null), 마감.then(() => null)])),
+    );
+  } finally {
+    clearTimeout(타이머);
+  }
 }
 
 /**
@@ -287,17 +314,22 @@ export function open(key, baseURL = "") {
  * 키가 없으면 부르지 않고 `null`을 돌려준다 — 그때 화면은 빌드 값을 그대로 보인다.
  * `client`를 넣어 주면 그것을 쓴다(검사가 가짜 모형을 끼우는 자리다).
  */
-export async function infer(record, env = {}, { client, samples = SAMPLES } = {}) {
+export async function infer(
+  record,
+  env = {},
+  { client, samples = SAMPLES, deadline = DEADLINE_MS } = {},
+) {
   const 고른것 = pick(env);
   if (!client && !고른것) return null;
   const 모형 = client ?? open(고른것.키, 고른것.밑주소);
   const 이름 = 고른것?.모형 ?? env[MODEL_ENV] ?? MODEL;
   const 더 = 고른것?.추가 ?? {};
-  const 결과 = await Promise.allSettled(
+  const 결과 = await 마감까지(
     Array.from({ length: samples }, () => sample(모형, record, { model: 이름, extra: 더 })),
+    deadline,
   );
   return settle(
-    결과.map((r) => (r.status === "fulfilled" ? r.value.값 : null)),
+    결과.map((r) => r?.값 ?? null),
     record,
   );
 }
@@ -359,7 +391,15 @@ export function fragment(record, inferred) {
  * 「계산중」이 영영 남는다.
  */
 export async function respond(name, env, options) {
-  const record = answer(decodeURIComponent(name));
+  // `decodeURIComponent`는 망가진 주소에 **던진다**. 여기서 던지면 Worker가 500을 내고,
+  // htmx는 200이 아닌 응답을 안 끼우므로 카드에 「계산중…」이 영영 남는다 — 조용한 멈춤이다
+  let 이름 = name;
+  try {
+    이름 = decodeURIComponent(name);
+  } catch {
+    이름 = name;
+  }
+  const record = answer(이름);
   const inferred = record.갈래 === "개편후" ? await infer(record, env, options) : null;
   return new Response(fragment(record, inferred), {
     headers: {

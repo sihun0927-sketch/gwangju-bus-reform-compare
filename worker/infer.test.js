@@ -237,6 +237,52 @@ test("운용 대수는 묻지 않고 셈한다 — 화면의 두 수가 어긋�
   assert.equal(모은것.적합운용대수, Math.round((왕복 / 모은것.적합배차간격) * 10) / 10);
 });
 
+test("늦은 표본은 마감에서 버리고 온 것으로 답한다 — 카드가 붙들리지 않는다", async () => {
+  // 표본 하나가 아주 늦게 오는 모형. 마감이 없으면 카드가 그 하나를 기다린다
+  const 느린놈 = {
+    보낸것: [],
+    chat: {
+      completions: {
+        parse: async (request) => {
+          느린놈.보낸것.push(request);
+          if (느린놈.보낸것.length === 1) return { choices: [{ message: { parsed: 답(13) } }] };
+          await new Promise((r) => setTimeout(r, 5_000));
+          return { choices: [{ message: { parsed: 답(99) } }] };
+        },
+      },
+    },
+  };
+  const 잰시각 = Date.now();
+  const 모은것 = await infer(기록, {}, { client: 느린놈, samples: 3, deadline: 120 });
+  const 걸린 = Date.now() - 잰시각;
+  assert.ok(걸린 < 1_000, `마감이 안 먹었다: ${걸린}ms`);
+  assert.equal(모은것.배차간격, 13, "제때 온 표본으로 답해야 한다");
+  assert.equal(모은것.표본.length, 1);
+});
+
+test("마감 안에 하나도 안 오면 null이라 계산값으로 내려앉는다", async () => {
+  const 다느림 = {
+    chat: { completions: { parse: async () => {
+      await new Promise((r) => setTimeout(r, 5_000));
+      return { choices: [{ message: { parsed: 답(13) } }] };
+    } } },
+  };
+  const 잰시각 = Date.now();
+  assert.equal(await infer(기록, {}, { client: 다느림, samples: 2, deadline: 100 }), null);
+  assert.ok(Date.now() - 잰시각 < 1_000);
+});
+
+test("주소가 망가져 있어도 500을 안 낸다 — 500이면 「계산중…」이 영영 남는다", async () => {
+  // `decodeURIComponent`가 던지는 입력이다. 던지면 htmx가 조각을 안 끼운다
+  const res = await respond("%EA%B0%84%EC%84%A018", {});
+  assert.equal(res.status, 200);
+  const 망가짐 = await respond("%", {});
+  assert.equal(망가짐.status, 200);
+  assert.match(await 망가짐.text(), /낼 수 없습니다/);
+  const 반쪽 = await respond("%E0%A4%A", {});
+  assert.equal(반쪽.status, 200);
+});
+
 test("모형이 던져도 죽지 않고 남은 표본으로 답한다", async () => {
   const client = 가짜([new Error("429"), 답(13), 답(13)]);
   const 모은것 = await infer(기록, {}, { client, samples: 3 });
