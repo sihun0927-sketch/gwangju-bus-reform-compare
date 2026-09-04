@@ -40,8 +40,14 @@ export const WALK_SPEED_KMH = 4;
 /** 「다른 경로 더 보기」로 펼치는 경로 수. 기본 경로 하나 뒤에 붙는다. */
 export const ALTERNATIVE_JOURNEYS = 2;
 
-/** 이 글자 수보다 짧게 친 검색어에는 후보를 안 띄운다. */
-export const PLACE_QUERY_MIN_LENGTH = 2;
+/**
+ * 이 글자 수보다 짧게 친 검색어에는 후보를 안 띄운다 — 곧 빈 칸에만 안 띄운다(2026-09-04).
+ *
+ * 한 글자로 줄인 까닭은 광주 정류장·장소에 한 글자로 갈리는 이름이 흔해서다(「역」「청」).
+ * 노선번호 탭이 첫 글자부터 후보를 좁히는 것과도 맞춘다 — 탭마다 다르게 굴면 시민이 배워야 한다.
+ * 대신 Kakao를 부르는 횟수가 는다. 같은 검색어의 응답을 하루 캐시하는 것이 그 몫을 받는다.
+ */
+export const PLACE_QUERY_MIN_LENGTH = 1;
 
 /** 자동완성 후보로 보일 장소 수. */
 export const PLACE_CANDIDATES = 5;

@@ -40,7 +40,7 @@ test("/journey는 조각을 돌려주고 깨진 키에는 404다", async () => {
   assert.match(응답.headers.get("content-type"), /text\/html/);
 });
 
-test("/places는 한 글자에는 빈 조각을, 두 글자에는 Kakao 후보 다섯 개를 돌려준다", async (t) => {
+test("/places는 빈 검색어에는 빈 조각을, 한 글자부터 Kakao 후보 다섯 개를 돌려준다", async (t) => {
   const originalFetch = globalThis.fetch;
   const originalCaches = globalThis.caches;
   const calls = [];
@@ -65,7 +65,8 @@ test("/places는 한 글자에는 빈 조각을, 두 글자에는 Kakao 후보 �
     globalThis.caches = originalCaches;
   });
 
-  assert.equal(await (await 부른다("/places?q=전")).text(), "");
+  assert.equal(await (await 부른다("/places?q=")).text(), "", "빈 칸에는 안 띄운다");
+  assert.match(await (await 부른다("/places?q=전")).text(), /<li/, "한 글자부터 띄운다");
   const first = await (await 부른다("/places?q=전남대")).text();
   const second = await (await 부른다("/places?q=전남대")).text();
 
@@ -75,8 +76,9 @@ test("/places는 한 글자에는 빈 조각을, 두 글자에는 Kakao 후보 �
   assert.match(first, /data-lat="35\.170"/);
   assert.match(first, /data-lng="126\.900"/);
   assert.equal(first, second);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].searchParams.get("query"), "전남대");
+  // 「전」과 「전남대」로 한 번씩 — 같은 검색어를 두 번 물어도 캐시가 받아 Kakao는 안 부른다
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls.map((u) => u.searchParams.get("query")), ["전", "전남대"]);
   assert.ok(calls[0].searchParams.get("rect"));
 });
 
@@ -137,7 +139,7 @@ test("규칙 상수는 rules 한 곳에 있다", () => {
   assert.equal(rules.MAX_TRANSFERS, 2);
   assert.equal(rules.SECONDS_PER_STOP, 20);
   assert.equal(rules.WALK_SPEED_KMH, 4);
-  assert.equal(rules.PLACE_QUERY_MIN_LENGTH, 2);
+  assert.equal(rules.PLACE_QUERY_MIN_LENGTH, 1);
   assert.equal(rules.PLACE_CACHE_SECONDS, 86400);
 });
 
