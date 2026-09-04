@@ -93,13 +93,14 @@ def build(
     facts = notes.collect(renames, load.read_removals(source), additions)
     stops = load.read_stops(source)
     canon = load.read_name_canon(_canon_path(source))
-    headways = load.read_headways(source)
-    # 배차간격 원천이 지금 **둘**이다. `load.read_headways`가 읽는 것은 개편 전 110행이라
-    # 순환01이 없고(그 노선은 화면에 「정보 없음」), 추정은 111행을 다 알아야 유효 운행시간을
-    # 풀 수 있어 순환01A·B가 든 `route_headways.csv`(120행)를 따로 읽는다.
-    # **하나로 합치는 것이 맞다** — 뒤엣것이 앞엣것을 덮으므로 옮기면 순환01 구멍도 메워진다.
-    # 다만 그것은 화면의 「정보 없음」 한 줄을 바꾸는 일이라 이 PR에서 하지 않는다(ADR-0010 남은 일)
+    # 배차간격 원천은 하나다 — 시가 공표한 `route_headways.csv` 120행(2026-09-04).
+    #
+    # 여태 둘이었다. 화면(번들)은 110행짜리 `route_headways_with_stops.csv`를, 추정은 120행짜리
+    # 이 파일을 읽었다. 110행에는 **순환01이 없다** — 시 파일이 그 노선만 「순환01A(…)」
+    # 「순환01B(…)」 둘로 갈라 적어 이름이 그대로 안 맞기 때문이다. 그래서 장소 탭 카드에
+    # 순환01만 「정보 없음」으로 떴다. 잇는 일은 `headway_of`가 이미 풀어 두었다(A·B 평균).
     headways_full = headway.read_headways(source)
+    headways = {r.name: headway.headway_of(r.name, headways_full) for r in before}
 
     pairs, missing = branches.pairs(before, after, replacements)
     if missing:
