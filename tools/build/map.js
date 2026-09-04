@@ -138,6 +138,19 @@
     return String(값).replace(/[;"'<>]/g, "");
   }
 
+/**
+   * 지도 모서리의 귀속 (ADR-0009 결정 9).
+   *
+   * 선은 OpenStreetMap에서 나온 도로 형상이고 ODbL은 귀속을 요구한다. 지도 밖 글줄을 늘리지 않고
+   * 모서리에 작게 붙인다 — 지도를 만들 때 한 번만 붙이므로 다시 그려도 늘지 않는다.
+   */
+  function 귀속() {
+    var 줄 = document.createElement("small");
+    줄.className = "map-credit";
+    줄.textContent = "© OpenStreetMap contributors";
+    return 줄;
+  }
+
   /** 점 하나의 DOM. 지름과 색만 인라인이고 나머지 모양은 `site.css`가 맡는다. */
   function 점_조각(하나) {
     var 지름 = 점_지름[하나.size] || 점_지름.small;
@@ -190,6 +203,7 @@
       자리.replaceChildren();
       var 첫점 = paths.length ? paths[0].points[0] : markers[0];
       놓인것 = { 지도: new maps.Map(자리, { center: 좌표(첫점), level: 6 }), 얹은것: [] };
+      자리.append(귀속());
       /* 카드가 접혔다 펴지거나 창이 바뀌면 타일이 반쪽만 남는다. 가운데를 붙잡고 다시 맞춘다 */
       if (typeof ResizeObserver === "function") {
         놓인것.지켜봄 = new ResizeObserver(function () {
