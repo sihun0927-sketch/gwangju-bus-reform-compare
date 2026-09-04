@@ -343,7 +343,8 @@ export async function infer(
 
 // **분은 정수로 적는다.** 추정에 소수를 보이면 없는 정밀도를 주장하는 셈이다
 const 분 = (x) => `${Math.round(x)}분`;
-const 대 = (x) => `${Number.isInteger(x) ? x : x.toFixed(1)}대`;
+// 버스는 반 대가 없다. 계산값은 소수(주기÷배차)지만 화면에는 반올림한 정수만 적는다
+const 대 = (x) => `${Math.round(x)}대`;
 
 /**
  * 카드의 「계산중」 자리를 대신할 조각.
