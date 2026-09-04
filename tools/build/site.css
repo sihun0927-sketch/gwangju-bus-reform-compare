@@ -385,6 +385,28 @@ ul.notes li { margin-top: 4px; padding-left: 10px; text-indent: -10px; }
 ul.notes li::before { content: "· "; }
 .notice { margin: 0; color: var(--ink-muted); }
 
+/* 예시 검색 — 첫 화면에서 눌러 볼 것을 준다(CONTEXT 「예시 검색」).
+   알약 셋이 한 줄에 들어가지 않으면 다음 줄로 흐른다. 좁은 화면에서 가로로 밀리지 않게 */
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+.examples-title { color: var(--ink-muted); font-size: 12px; margin-right: 2px; }
+.example {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.example:hover { background: var(--better-bg); border-color: var(--accent-soft); }
+
 .journey-card button { margin-top: 10px; align-self: flex-start; }
 .show-on-map, .more {
   background: var(--card-bg);
