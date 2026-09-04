@@ -94,9 +94,13 @@ def test_배차간격은_개편_전이_공표값_개편_후가_추정값이다(b
     공표 = {k: v for k, v in 붙은_것.items() if not 노선[k]["estimated"]}
     추정 = {k: v for k, v in 붙은_것.items() if 노선[k]["estimated"]}
 
-    assert len(공표) == 110, "배차 CSV 110행"
+    # 개편 전 노선안 111행이 다 값을 받는다(2026-09-04). 여태 110행이었던 까닭은 시 배차 파일이
+    # 순환01만 「순환01A(…)」「순환01B(…)」 둘로 갈라 적어 이름이 그대로 안 맞았기 때문이다 —
+    # 그 노선 하나가 화면에 「정보 없음」으로 떴다. `headway_of`가 A·B를 평균 내 잇는다
+    assert len(공표) == 111, "개편 전 노선안 111행 — 빈칸 없음"
     assert all(k.startswith("before:") for k in 공표), "공표값은 개편 전에만 있다"
-    assert all(isinstance(v, int) and v > 0 for v in 공표.values()), "분 단위 정수다"
+    assert all(v > 0 for v in 공표.values()), "모두 값이 있다"
+    assert 노선["before:순환01"]["headway"] == 10, "순환01A·B가 둘 다 10분이라 평균도 10분이다"
 
     assert len(추정) == 119, "개편 후 노선안 119행 — 방면이 갈라져도 번호의 값을 나눠 쓴다"
     assert all(k.startswith("after:") for k in 추정), "추정은 개편 후에만 있다"
@@ -108,8 +112,7 @@ def test_배차간격은_개편_전이_공표값_개편_후가_추정값이다(b
     assert 노선["before:228(구151.화순사평)"]["estimated"] is False
     assert 노선["after:228"]["estimated"] is True
     assert 노선["before:228(구151.화순사평)"]["headway"] != 노선["after:228"]["headway"]
-    # 개편 전 111행 중 순환01 한 행만 배차 CSV에 없다 — **없는 것**과 **추정한 것**은 다르다
-    assert 노선["before:순환01"]["headway"] is None
+    # 순환01도 공표값이다 — 시 파일이 A·B로 갈라 적었을 뿐 우리가 추정한 것이 아니다
     assert 노선["before:순환01"]["estimated"] is False
     assert 노선["before:좌석02"]["headway"] == 7
 
