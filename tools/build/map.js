@@ -237,6 +237,76 @@
     놓인것.지도.setBounds(테두리, 28, 28, 28, 28);
   }
 
+
+  /* ── 노선 형상 ────────────────────────────────────────────────────
+     선은 정류장 직선이 아니라 차도 경로다(ADR-0009). 형상은 노선마다 파일 하나이고 조각에는
+     열쇠만 실린다 — 카드 하나가 받는 양이 33KB쯤이라 번들에 싣지 않는다.
+     받은 것은 그대로 들고 있는다. 같은 노선을 두 번 그릴 일이 잦다(다른 경로를 펼칠 때) */
+  var 형상_기억 = {};
+
+  /** 열쇠 하나 → 점 목록. 못 받으면 `null`이고 그 구간은 정류장 직선으로 돌아간다. */
+  function 형상_받기(열쇠) {
+    if (Object.prototype.hasOwnProperty.call(형상_기억, 열쇠)) {
+      return Promise.resolve(형상_기억[열쇠]);
+    }
+    /* 파일 이름에서 `|`는 `~`다(빌드의 `SHAPE_SEP`). 나머지 글자는 인코딩이 알아서 한다 */
+    return fetch("shape/" + encodeURIComponent(열쇠.replace(/\|/g, "~")) + ".json")
+      .then(function (답) { return 답.ok ? 답.json() : null; })
+      .then(function (점들) {
+        var 값 = Array.isArray(점들) && 점들.length > 1
+          ? 점들.map(function (점) { return { lat: 점[0], lng: 점[1] }; })
+          : null;
+        형상_기억[열쇠] = 값;
+        return 값;
+      })
+      .catch(function () { 형상_기억[열쇠] = null; return null; });
+  }
+
+  /** 열쇠 여럿을 한꺼번에. 하나가 없어도 나머지는 그린다. */
+  function 형상들_받기(열쇠들) {
+    var 고른것 = 열쇠들.filter(function (열쇠) { return !!열쇠; });
+    if (!고른것.length || typeof fetch !== "function") return Promise.resolve({});
+    return Promise.all(고른것.map(형상_받기)).then(function (것들) {
+      var 표 = {};
+      고른것.forEach(function (열쇠, i) { if (것들[i]) 표[열쇠] = 것들[i]; });
+      return 표;
+    });
+  }
+
+  /** 두 점 사이 거리의 제곱. 어느 점이 더 가까운지만 가리면 되므로 제곱근을 안 씌운다. */
+  function 거리제곱(a, b) {
+    var dy = a.lat - b.lat;
+    var dx = (a.lng - b.lng) * 0.82;   // 광주 위도에서 경도 1도는 위도 1도의 0.82배쯤이다
+    return dy * dy + dx * dx;
+  }
+
+  /** 형상에서 점 하나에 가장 가까운 자리. */
+  function 가장가까운(형상, 점) {
+    var 고른 = 0;
+    var 가장 = Infinity;
+    형상.forEach(function (자리, i) {
+      var 잼 = 거리제곱(자리, 점);
+      if (잼 < 가장) { 가장 = 잼; 고른 = i; }
+    });
+    return 고른;
+  }
+
+  /**
+   * 노선 전체 형상에서 **승차부터 하차까지**만 자른다.
+   *
+   * 형상은 노선 한 바퀴이고 우리가 그릴 것은 그 가운데 한 토막이다. 자르는 자리는 승차·하차
+   * 정류장에 가장 가까운 점이다 — 형상이 정류장을 지나가되 정확히 밟지는 않기 때문이다.
+   * 양 끝에 정류장 좌표를 덧대어 선이 점에서 시작하고 점에서 끝나게 한다.
+   */
+  function 잘라낸다(형상, 승차, 하차) {
+    if (!형상 || 형상.length < 2 || !승차 || !하차) return null;
+    var 처음 = 가장가까운(형상, 승차);
+    var 끝 = 가장가까운(형상, 하차);
+    if (처음 === 끝) return null;
+    var 토막 = 처음 < 끝 ? 형상.slice(처음, 끝 + 1) : 형상.slice(끝, 처음 + 1).reverse();
+    return [승차].concat(토막, [하차]);
+  }
+
   /* ── 장소 탭 · 경로 지도 ─────────────────────────────────────────── */
 
   /**
@@ -246,19 +316,25 @@
    * 거기가 타고 내리는 곳이다. 사이 정류장은 지나갈 뿐이라 작은 점에 라벨이 없다.
    * 마지막에 자리로 겹치므로, 개편 전·후가 같은 정류장을 쓰면 점 하나에 색 둘이 남는다.
    */
-  function journey(경로들) {
+  function journey(경로들, 형상표) {
+    var 받은것 = 형상표 || {};
     var paths = [];
     var markers = [];
     경로들.forEach(function (geometry) {
       var 노선망 = geometry.network;
       var 칠하기 = 색(노선망);
+      var 열쇠들 = geometry.shapes || [];
       // 좌표가 하나도 없는 구간은 뺀다 — 점 없는 선을 얹으면 테두리 계산이 어긋난다
-      var 구간들 = (geometry.legs || []).filter(function (leg) { return leg.length; });
+      var 구간들 = [];
+      (geometry.legs || []).forEach(function (leg, 차례) {
+        if (leg.length) 구간들.push({ 점들: leg, 형상: 받은것[열쇠들[차례]] });
+      });
       if (!구간들.length) return;
 
       var 앞 = geometry.from;
-      구간들.forEach(function (leg) {
-        paths.push(선(노선망, leg));
+      구간들.forEach(function (구간) {
+        var leg = 구간.점들;
+        paths.push(선(노선망, 잘라낸다(구간.형상, leg[0], leg[leg.length - 1]) || leg));
         paths.push(선("walk", [앞, leg[0]]));
         앞 = leg[leg.length - 1];
         leg.forEach(function (정류장, 차례) {
@@ -314,11 +390,20 @@
     if (!자리) return;
     var 감쌈 = 자리.closest(".journey-map");
     var 고른것 = [선택.before, 선택.after].filter(Boolean);
-    var 그림 = journey(고른것.map(function (하나) { return 하나.geometry; }));
+    var 좌표들 = 고른것.map(function (하나) { return 하나.geometry; });
     // 키가 없으면 SDK도 없다. 그릴 수 없는 자리는 비워 두지 않고 감춘다
-    감쌈.hidden = !준비됨 || !그림.paths.length;
+    감쌈.hidden = !준비됨 || !journey(좌표들).paths.length;
     if (감쌈.hidden) return;
-    준비되면(function () { draw(자리, 그림); });
+    /* 형상을 받는 동안 정류장 직선으로 먼저 그린다 — 지도가 빈 채로 기다리지 않는다.
+       받아 오면 같은 자리에 다시 그리고, 못 받으면 먼저 그린 것이 그대로 남는다 */
+    준비되면(function () { draw(자리, journey(좌표들)); });
+    var 열쇠들 = 좌표들.reduce(function (모두, 하나) {
+      return 모두.concat(하나.shapes || []);
+    }, []);
+    형상들_받기(열쇠들).then(function (형상표) {
+      if (!Object.keys(형상표).length) return;
+      준비되면(function () { draw(자리, journey(좌표들, 형상표)); });
+    });
   }
 
   function 다시() {
