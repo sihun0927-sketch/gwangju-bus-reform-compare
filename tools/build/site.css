@@ -363,19 +363,17 @@ ul.summary li.added .count { color: var(--better-ink); }
   padding: 1px 5px;
 }
 
-/* 카드 둘을 늘려 **바닥에서 맞춘다** — 지표가 같은 높이에 와야 눈을 옮기지 않고 견준다.
-   경로 줄 길이가 달라 생기는 빈 자리는 메우지 않는다 (CONTEXT 「개편 전 카드 / 개편 후 카드」).
+/* 카드 한 쌍의 격자. **기본은 한 열이다** — 옆으로 벌리는 일은 아래 「넓은 화면」 블록에서만 한다.
+   두 열을 기본으로 두고 좁은 화면에서 되돌리던 때는 되돌리기가 아예 안 먹었다: 되돌리는 쪽
+   (`.compare > *`)이 세우는 쪽(`.compare > [data-network="after"]`)보다 특정도가 낮아
+   휴대폰에서도 카드 둘이 137px·171px로 나란히 섰다(2026-09-04). 기본이 한 열이면 되돌릴 것이 없다.
 
-   격자를 두 줄로 나눈다 — 카드는 첫 줄, 펼친 다른 경로는 둘째 줄이다. 다른 경로가 카드 **안**에
-   있으면 한쪽만 펼쳐도 첫 줄이 커져 옆 카드가 빈 채로 따라 늘어난다. 줄을 나누면 늘어나는 것은
-   둘째 줄뿐이고, 안 펼친 쪽의 `<details>`는 배경이 없어 아무것도 안 보인다 */
-/* `start`인 까닭: 카드 안에서 무언가 펼쳐져도(배차간격 옆 「?」) 옆 카드가 빈 채로 따라
+   한 열일 때 쌓이는 차례는 조각에 적힌 그대로다 — 개편 전 카드 · 개편 전 다른 경로 ·
+   개편 후 카드 · 개편 후 다른 경로. 한 화면에 하나씩 읽어 내려가는 차례가 이것이다.
+
+   `start`인 까닭: 카드 안에서 무언가 펼쳐져도(배차간격 옆 「?」) 옆 카드가 빈 채로 따라
    늘어나지 않게. `stretch`면 한쪽만 펴도 격자 첫 줄이 커져 둘 다 커진다 */
-.compare { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); align-items: start; }
-.compare > .journey-card { grid-row: 1; }
-.compare > .alternatives { grid-row: 2; align-self: start; }
-.compare > [data-network="before"] { grid-column: 1; }
-.compare > [data-network="after"] { grid-column: 2; }
+.compare { display: grid; grid-template-columns: 1fr; gap: var(--gap); align-items: start; }
 .journey-card {
   background: var(--card-bg);
   border: 1px solid var(--line);
@@ -520,16 +518,86 @@ details.alternatives > .journey-card { margin-top: 10px; }
 /* 칩과 카드 배경이 같은 색이면 알약이 사라진다 — 펼친 카드에서는 칩을 흰 바탕으로 */
 .journey-card.alternative .chip { background: var(--card-bg); }
 
-@media (max-width: 640px) {
-  /* 한 줄로 세우면 격자 자리 지정이 되레 순서를 흩뜨린다 — 조각에 적힌 차례대로 쌓는다 */
-  .compare { grid-template-columns: 1fr; }
-  .compare > * { grid-row: auto; grid-column: 1; }
-  .journey-map .canvas {
-  position: relative; height: 240px; }
+/* ══════════════════════════════════════════════════════════════════════════════
+   여기부터 화면 폭이 갈린다. 위는 폭과 상관없는 공통이고, 아래는 딱 두 덩이다.
+
+     · 넓은 화면 — `min-width: 641px`. 마우스로 보는 화면. 옆으로 벌려 한눈에 견준다.
+     · 좁은 화면 — `max-width: 640px`. 손가락으로 보는 화면. 위아래로 쌓고, 누르는 것을 키운다.
+
+   기준선은 640px 하나뿐이다. 그 사이에 낀 값(768·1024…)은 두지 않는다 — 기준선이 늘면
+   어느 폭에서 무엇이 서는지 이 파일만 봐서는 알 수 없게 된다.
+   폭이 640.5px 같은 소수로 나오면 두 블록 다 안 걸리는데, 그때 남는 것은 공통(= 좁은 화면)이라
+   깨지는 쪽이 아니라 읽히는 쪽으로 떨어진다.
+
+   **옆으로 벌리는 규칙은 넓은 화면 블록 안에만 적는다.** 공통에 적고 좁은 화면에서 되돌리면
+   되돌리기가 특정도에 져서 조용히 안 먹는 일이 생긴다 — `.compare`가 그랬다.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 넓은 화면 ─────────────────────────────────────────────────────────────── */
+@media (min-width: 641px) {
+  /* 카드 한 쌍을 두 열로. 격자를 두 줄로 나눠 카드는 첫 줄, 펼친 다른 경로는 둘째 줄에 둔다 —
+     다른 경로가 카드 **안**에 있으면 한쪽만 펼쳐도 첫 줄이 커져 옆 카드가 빈 채로 따라 늘어난다.
+     줄을 나누면 늘어나는 것은 둘째 줄뿐이고, 안 펼친 쪽의 `<details>`는 배경이 없어 안 보인다
+     (CONTEXT 「개편 전 카드 / 개편 후 카드」) */
+  .compare { grid-template-columns: 1fr 1fr; }
+  .compare > .journey-card { grid-row: 1; }
+  .compare > .alternatives { grid-row: 2; align-self: start; }
+  .compare > [data-network="before"] { grid-column: 1; }
+  .compare > [data-network="after"] { grid-column: 2; }
 }
 
+/* ── 좁은 화면 ─────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .page { padding: 20px 12px 48px; }
-  h1 { font-size: 24px; }
-  .stop-diff { display: block; overflow-x: auto; }
+  /* 페이지 — 여백을 줄여 글줄을 넓힌다. 12px보다 좁히지는 않는다(엄지가 화면 가장자리를 스친다) */
+  .page { padding: 18px 12px 40px; }
+  h1 { font-size: 23px; }
+  .lead { margin-bottom: 18px; }
+
+  /* 탭 둘이 폭을 반씩 나눠 갖는다. 높이는 손가락만 하게 — 44px가 눌러지는 최소다 */
+  .tabs { gap: 0; }
+  .tabs label { flex: 1; text-align: center; padding: 13px 8px; }
+
+  .card { padding: 14px; }
+  /* 결과 자리도 같이 좁힌다 — 안쪽 카드가 이미 테두리를 그으므로 20px는 폭만 먹는다 */
+  .result { padding: 12px; }
+
+  /* 입력칸 — 글꼴이 16px보다 작으면 iOS가 칸을 누를 때 화면을 통째로 확대한다. 그 뒤로는
+     모든 글자가 커진 채 가로로 밀려 「뭉개져」 보인다. 그래서 이 칸만 16px로 못 박는다 */
+  .field { padding: 12px; }
+  .field input { font-size: 16px; }
+  .place-candidates li { padding: 13px 12px; }
+
+  /* 누르는 것들 — 알약과 단추의 높이를 손가락에 맞춘다 */
+  .example, .show-on-map, .more, .list-more, .choice button { padding: 9px 14px; }
+  .reform-list td { padding: 13px 12px; }
+
+  /* 노선 개편 목록 표 — 칸이 둘뿐이라 그대로 선다. 번호 칸만 좁혀 대체 노선에 폭을 준다 */
+  .reform-list td.before { width: 32%; }
+
+  /* 노선 변화 표는 칸이 여섯이다(#·개편 전·후 상행·개편 전·후 하행·비고). 휴대폰 폭에 우겨 넣으면
+     정류장 이름이 한 글자씩 세로로 쪼개진다 — 줄이지 않고 옆으로 넘긴다.
+     칸마다 `nowrap`을 걸어야 표가 폭을 줄이지 못하고 넘쳐, 그 넘침을 이 상자가 스크롤로 받는다.
+     `overflow-x`만 걸면 표는 그냥 눌린다(그게 2026-09-04까지의 화면이었다) */
+  .stop-diff { display: block; overflow-x: auto; font-size: 13px; }
+  .stop-diff th, .stop-diff td { white-space: nowrap; }
+
+  /* 요약 여섯 장(상·하행 × 유지·제외·추가)은 두 장씩 세 줄로 — 한 줄에 셋이 서면 「29곳」이
+     제 이름과 떨어져 어느 숫자가 무엇인지 안 읽힌다 */
+  ul.summary li { flex: 1 1 calc(50% - 8px); }
+
+  /* 지도 — 세로를 줄인다. 360px면 한 화면을 거의 다 먹어 아래 표가 있는 줄도 모른다 */
+  .route-map { height: 260px; }
+  .journey-map .canvas { height: 240px; }
+
+  /* 글자 — 작은 글씨를 한 단씩 올린다. 화면이 좁을수록 눈이 가까이 가지 않는다 */
+  .route-card h2 { font-size: 21px; }
+  .route-change h3 { font-size: 16px; }
+  ol.steps { font-size: 15px; }
+  ol.steps .sub { font-size: 13px; }
+  dl.metrics { font-size: 15px; }
+  ul.notes { font-size: 13px; }
+
+  /* 배차간격 줄은 「13분 · 적합 13분 · 버스 11.1대(지금 11.5대)」로 길다. 좁은 폭에서 넘치지 않게
+     다음 줄로 흐르게 둔다 — 자리를 미리 잡아 둔 `min-height`는 한 줄일 때만 뜻이 있다 */
+  .headway { flex-wrap: wrap; margin-left: 0; }
 }
