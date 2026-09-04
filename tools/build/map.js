@@ -36,6 +36,8 @@
   "use strict";
 
   var 지도_자리 = "#journey-map-canvas";
+  /* 장소 자동완성 후보가 끼워지는 자리. 지도는 이 조각이 갈리는 것을 못 본 체한다 — 아래 `htmx:afterSwap` */
+  var 후보_자리 = ".place-candidate-list";
   /* 선 셋의 생김새. 색은 `site.css`의 `--map-*`에서 읽는다 — 팔레트가 두 곳에 살면 갈린다 */
   var 모습 = {
     before: { 색: "--map-before", weight: 6, style: "shortdash" },
@@ -510,6 +512,10 @@
   }
 
   document.addEventListener("htmx:afterSwap", function (event) {
+    /* 자동완성 후보가 갈린 것은 지도와 아무 상관이 없다. 그런데도 다시 그리면 끝의 `setBounds`가
+       시민이 옮겨 놓은 자리와 배율을 **글자마다** 처음으로 되돌린다 — 지도를 들여다보며 목적지를
+       고쳐 치는 것이 흔한 일이라, 확대해 둔 지도가 한 글자에 튀어 달아난다 (2026-09-04) */
+    if (event.target.closest && event.target.closest(후보_자리)) return;
     다시();
     노선_그린다(event.target);
   });
