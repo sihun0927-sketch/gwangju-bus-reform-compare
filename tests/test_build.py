@@ -460,7 +460,7 @@ def test_같은_번호라도_종류가_다른_대체_노선은_버튼이_따로�
 
 def test_대체_노선이_없는_번호의_카드에는_표도_버튼도_없다(site: Path) -> None:
     html = card(site, "두암181")
-    assert "대체 노선 없음" in html
+    assert "노선 사라짐" in html
     assert "<table" not in html
     assert "hx-get" not in html
     assert "대덕" in html   # 개편 전 정류장 목록은 있다
@@ -559,7 +559,7 @@ def test_목록_줄은_눌리는_것으로_읽히고_끼운_자리를_보여_준
     assert "keyup[key=='Enter']" in 줄 and "keyup[key==' ']" in 줄
     assert 'hx-swap="innerHTML show:top"' in 줄
     assert 'aria-label="문흥18 — 간선18, 지선10"' in 줄
-    assert 'aria-label="두암181 — 대체 노선 없음"' in list_row(index(site), "두암181")
+    assert 'aria-label="두암181 — 노선 사라짐"' in list_row(index(site), "두암181")
 
 
 def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조각을_부른다(site: Path) -> None:
@@ -576,7 +576,7 @@ def test_노선번호_입력칸은_후보_목록을_달고_고르면_카드_조�
     assert len(후보) == 103
     assert ("문흥18", "간선18 · 지선10") in 후보
     assert ("지원152", "급행1003 · 228") in 후보
-    assert ("두암181", "대체 노선 없음") in 후보
+    assert ("두암181", "노선 사라짐") in 후보
     # 후보 순서는 목록 표 순서 그대로다 — 같은 번호를 두 곳이 다르게 적는 일이 없다
     번호 = [re.search(r"route/(.*?)\.html", 줄).group(1) for 줄 in list_rows(html)]
     assert [값 for 값, _ in 후보] == 번호
@@ -620,6 +620,25 @@ def test_지도_스크립트는_좌표_배열만_받는다(site: Path) -> None:
     assert "function route(geometry)" in script
 
 
+def test_목록_표는_다섯_줄만_펼쳐지고_나머지는_접혀_있다(site: Path) -> None:
+    """103줄이 다 서면 목록이 화면을 다 먹어 결과가 어디에 떴는지 안 보인다(2026-09-04).
+
+    줄을 덜어 내지는 않는다 — 표에 103줄이 다 있고 CSS가 여섯째 줄부터 감춘다. 열 너비가 접기
+    전후로 안 흔들리고 브라우저의 「페이지에서 찾기」도 접힌 줄을 찾는다.
+    """
+    html = index(site)
+    assert '<input type="checkbox" id="route-list-all" class="list-toggle">' in html
+    assert '<span class="shut">나머지 98개 더 보기</span>' in html
+    assert '<span class="open">접기</span>' in html
+    assert html.count('<tr hx-get="route/') == 103, "줄은 다 실린다"
+
+    css = (site / "site.css").read_text(encoding="utf-8")
+    assert ".reform-list tbody tr:nth-child(n + 6) { display: none; }" in css
+    assert "#route-list-all:checked ~ .reform-list tbody tr:nth-child(n + 6)" in css
+    # 접기는 우리 스크립트를 늘리지 않는다(ADR-0001) — 탭 전환과 같은 수법이다
+    assert "route-list-all" not in (site / "map.js").read_text(encoding="utf-8")
+    assert "route-list-all" not in (site / "place.js").read_text(encoding="utf-8")
+
 def test_첫_화면은_장소_탭이다(site: Path) -> None:
     """시민이 먼저 묻는 것은 「내 길이 어떻게 달라지나」다(2026-09-04)."""
     html = index(site)
@@ -660,7 +679,7 @@ def test_목록_줄에_대체_노선_이름이_적힌다(site: Path) -> None:
     assert "간선18" in 문흥18줄 and "지선10" in 문흥18줄
     순환01줄 = list_row(html, "순환01")
     assert "간선01" in 순환01줄 and "간선11" in 순환01줄
-    assert "대체 노선 없음" in list_row(html, "두암181")
+    assert "노선 사라짐" in list_row(html, "두암181")
 
 
 def test_목록이_가리키는_카드_파일이_다_있다(site: Path) -> None:
@@ -842,8 +861,10 @@ def test_같은_정류장을_두_번_지나도_한_곳으로_센다(site: Path) 
 def test_카드에_노선_지도_자리와_범례가_있다(site: Path) -> None:
     html = card(site, "문흥18")
     assert '<div class="route-map"' in html
-    assert "굵은 초록 = 개편 전 · 가는 파랑 = 대체 노선" in html
-    assert "점: 유지 회색 · 경유 제외 빨강 · 경유 추가 파랑" in html
+    assert "초록 = 개편 전 노선, 파랑 = 개편 후 대체 노선" in html
+    assert "회색점: 경유 유지, 빨강점: 경유 제외, 파랑점: 경유 추가" in html
+    # 선이 추정이라는 한 줄도 함께 선다 (ADR-0009 결정 1)
+    assert "실제 운행 경로와 다를 수 있습니다" in html
     assert "지도에 없습니다" not in html   # 문흥18 ↔ 간선18은 좌표가 다 있다
 
 

@@ -38,7 +38,8 @@ REPLACED_LEAD = "개편 후에는 →"
 
 # 노선 지도 — 자리와 범례는 카드에, 좌표와 「지도에 없습니다」 줄은 표에 있다. 표가 바뀌면 지도도 바뀐다
 MAP_LEGEND = (
-    "굵은 초록 = 개편 전 · 가는 파랑 = 대체 노선 · 점: 유지 회색 · 경유 제외 빨강 · 경유 추가 파랑"
+    "초록 = 개편 전 노선, 파랑 = 개편 후 대체 노선,"
+    " 회색점: 경유 유지, 빨강점: 경유 제외, 파랑점: 경유 추가"
 )
 # 선이 무엇인지 밝히는 한 줄 (ADR-0009 결정 1). 점은 사실이고 선은 우리가 낸 추정이다 —
 # 시가 공표한 것은 정류장의 **순서**뿐이라 버스가 그 길로 다니는지는 아무도 모른다
@@ -56,6 +57,11 @@ LIST_LEAD = (
     " 한 줄을 누르면 그 노선의 대체 노선과 노선 변화 표가 아래에 뜹니다."
 )
 LIST_COLUMNS = ("개편 전 노선", "개편 후 노선")
+# 첫 화면에 펼쳐 두는 줄 수. 103줄이 다 서면 목록이 화면을 다 먹어 아래 결과 자리가 안 보인다
+LIST_PREVIEW_ROWS = 5
+LIST_TOGGLE_ID = "route-list-all"
+LIST_MORE = "나머지 {rest}개 더 보기"
+LIST_LESS = "접기"
 # 줄을 누르는 것은 마우스만이 아니다 — 탭으로 옮겨 엔터나 스페이스를 쳐도 같은 조각을 부른다
 LIST_TRIGGER = "click, keyup[key=='Enter'], keyup[key==' ']"
 # 결과 영역은 목록 표 아래에 있다. 그냥 끼우면 긴 목록의 끝을 누른 사람에게는 화면 밖에서 바뀐다
@@ -183,18 +189,38 @@ def _list_row(row: Row) -> str:
 
 
 def route_reform_list(rows: list[Row]) -> str:
-    """노선 개편 목록 표. 껍데기 안에 통째로 들어간다 — 첫 화면에 늘 펼쳐져 있다."""
+    """노선 개편 목록 표. 껍데기 안에 통째로 들어간다 — 103줄이 다 실린다.
+
+    첫 화면에는 `LIST_PREVIEW_ROWS`줄만 보이고 나머지는 접혀 있다(2026-09-04). 103줄이 다 서면
+    목록이 화면을 다 먹어 한 줄을 눌러도 결과가 어디에 떴는지 안 보인다.
+
+    **줄을 덜어 내지 않고 감추기만 한다.** 표 하나에 다 있어야 열 너비가 접기 전후로 안 흔들리고,
+    브라우저의 「페이지에서 찾기」가 접힌 줄도 찾아 준다. 감추는 일은 숨긴 체크박스와 CSS가 한다 —
+    탭 전환과 같은 수법이라 우리 스크립트가 늘지 않는다(ADR-0001).
+
+    단추는 표 **아래**에 둔다. 그 자리가 「더 볼 것이 있다」는 표시가 서는 자리이기 때문이다 —
+    위에 두면 다섯 줄을 읽기도 전에 눈이 단추로 먼저 간다.
+    """
+    rest = max(len(rows) - LIST_PREVIEW_ROWS, 0)
+    접기 = [f'<input type="checkbox" id="{LIST_TOGGLE_ID}" class="list-toggle">'] if rest else []
+    단추 = [
+        f'<label for="{LIST_TOGGLE_ID}" class="more list-more">'
+        f'<span class="shut">{LIST_MORE.format(rest=rest)}</span>'
+        f'<span class="open">{LIST_LESS}</span></label>',
+    ] if rest else []
     return "\n".join([
         '<section class="route-list">',
         f"<h2>{LIST_TITLE}</h2>",
         f'<p class="lead">{LIST_LEAD}</p>',
         f'<p class="count">{len(rows)}개 노선</p>',
+        *접기,
         '<table class="reform-list">',
         "<thead><tr>" + "".join(f"<th>{escape(c)}</th>" for c in LIST_COLUMNS) + "</tr></thead>",
         '<tbody class="reform">',
         *[_list_row(r) for r in rows],
         "</tbody>",
         "</table>",
+        *단추,
         "</section>",
         "",
     ])
