@@ -68,12 +68,13 @@ Worker 코드(`worker/`)는 장소 탭 세 경로 `/places` · `/compare` · `/j
 ```
 python -m tools.build            # data/source → out/ (정적 조각) + worker/data.json (번들 JSON)
 python -m pytest                 # 빌드 검사 — out/의 조각과 번들 JSON을 본다
-npm test                         # Worker 검사 — 빌드를 한 번 돌린 뒤 node --test
+npm test                         # Worker와 브라우저 스크립트 검사 — 빌드를 한 번 돌린 뒤 node --test
 npm run deploy:dry               # wrangler deploy --dry-run
 python tools/measure_direction.py    # 실측 — 기·종점 정렬 단계별 개수 (§6-1)
 python tools/measure_transfers.py    # 실측 — 번들 크기와 환승 표 줄 수 (§6-2)
 node tools/measure_search.mjs        # 실측 — 상태 분포와 요청 시간 (§6-3, 빌드가 먼저다)
 node tools/measure_cpu.mjs           # 실측 — /compare 요청당 CPU (§6-4, `npm ci`와 빌드가 먼저다)
+node tools/measure_labels.mjs        # 실측 — 경로 지도의 라벨 겹침 (§6-5, 헤드리스 크롬이 필요하다)
 ```
 
 `out/`과 `worker/data.json`은 빌드 산출물이라 저장소에 없다. **배포도 테스트도 빌드가 먼저다.**

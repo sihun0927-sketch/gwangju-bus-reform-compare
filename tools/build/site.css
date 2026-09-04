@@ -255,9 +255,9 @@ ul.summary li.added .count { color: var(--better-ink); }
    큰 점은 타고 내리는 곳(가운데가 흰 도넛), 작은 점은 지나가는 곳이다. 색이 둘이면 부채꼴로
    반씩 나뉜다 — 개편 전후가 함께 쓰는 정류장이다 (CONTEXT 「경로 지도」) */
 .map-pin {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
   white-space: nowrap;
   /* 점은 알림이지 단추가 아니다. 눌림을 지도에 그대로 넘겨 끌기·확대가 점 위에서도 된다 */
   pointer-events: none;
@@ -271,7 +271,16 @@ ul.summary li.added .count { color: var(--better-ink); }
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 .map-dot__core { flex: none; border-radius: 50%; background: #fff; }
+/* 라벨은 점에서 띄워 **네 자리 중 하나**에 선다. 어느 자리인지는 `map.js`의 `놓는다`가 화면
+   픽셀을 보고 정하고 여기 modifier로 붙인다(ADR-0010). 아래 기본값이 오른쪽이라, 자리를
+   못 고른 동안(첫 프레임·SDK가 자리를 안 알려줄 때)에도 예전 그대로 보인다.
+   점 밖으로 띄우는 여백 4px은 `map.js`의 `라벨_틈`과 같은 값이라야 자리 셈이 맞는다 */
 .map-label {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  margin-left: 4px;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.3;
@@ -281,6 +290,28 @@ ul.summary li.added .count { color: var(--better-ink); }
   border-radius: 4px;
   padding: 1px 5px;
 }
+/* `--right`는 규칙이 없다 — 위 기본값이 곧 오른쪽 자리다 */
+.map-label--left {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 4px;
+}
+.map-label--top {
+  top: auto;
+  bottom: 100%;
+  left: 50%;
+  margin: 0 0 4px;
+  transform: translateX(-50%);
+}
+.map-label--bottom {
+  top: 100%;
+  left: 50%;
+  margin: 4px 0 0;
+  transform: translateX(-50%);
+}
+/* 네 자리가 다 막힌 라벨은 감춘다 — 점은 그대로 그린다(ADR-0010) */
+.map-label[hidden] { display: none; }
 
 /* 카드 둘을 늘려 **바닥에서 맞춘다** — 지표가 같은 높이에 와야 눈을 옮기지 않고 견준다.
    경로 줄 길이가 달라 생기는 빈 자리는 메우지 않는다 (CONTEXT 「개편 전 카드 / 개편 후 카드」).

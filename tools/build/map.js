@@ -17,6 +17,10 @@
    점 크기는 둘이다 — 타고 내리는 곳은 큰 점(가운데가 흰 도넛), 지나가는 곳은 작은 점. 큰 점에는
    이름 라벨이 붙는다. 다 붙이면 정류장 이름이 지도를 덮는다.
 
+   라벨은 점 오른쪽이 기본이고, 거기가 다른 라벨에 막히면 **왼쪽 → 위 → 아래로 비킨다.** 네 자리
+   모두 막히면 **감춘다** — 겹쳐 읽히느니 없는 편이 낫다(ADR-0010). 점은 그대로 그린다.
+   자리를 고르는 `놓는다`도 순수 함수라 DOM 없이 검사한다.
+
    장소 탭이 넘기는 것은 카드마다 하나씩 고른 경로다(카드당 하나, CONTEXT). 개편 전은 점선,
    개편 후는 실선이고 색은 노선 지도와 같은 초록·파랑을 쓴다. 도보(출발 → 승차 · 환승 ·
    하차 → 도착)는 회색 점선으로 잇는다.
@@ -29,8 +33,9 @@
    Kakao JS 키가 없으면(로컬 빌드) SDK 태그가 아예 없다. 그때 장소 탭은 지도 자리를 감추고
    — 시민에게 키 이야기를 하지 않는다 — 노선번호 탭은 카드에 이미 자리가 있으므로 한 줄만 남긴다.
 
-   `journey`와 `route`도 함께 내놓는다. 좌표 조각을 위 `그림` 모양으로 옮기기만 하는 순수 함수라,
-   DOM도 SDK도 없이 검사할 수 있다(`map.test.js`). 그리는 일은 여전히 `draw` 하나가 한다. */
+   `journey`와 `route`와 `놓는다`도 함께 내놓는다. 앞 둘은 좌표 조각을 위 `그림` 모양으로 옮기고
+   `놓는다`는 화면 좌표에서 라벨 자리를 고르는데, 셋 다 DOM도 SDK도 없이 검사할 수 있는 순수
+   함수다(`map.test.js`). 그리는 일은 여전히 `draw` 하나가 한다. */
 
 (function () {
   "use strict";
@@ -98,6 +103,59 @@
       if (!있던것.label) 있던것.label = 하나.label;
     });
     return 자리별;
+  }
+
+  /* ── 라벨 자리 (ADR-0010) ──────────────────────────────────────────
+     라벨은 점 오른쪽이 기본이고 막히면 왼쪽·위·아래로 비킨다. 네 자리 다 막히면 감춘다. */
+
+  /** 점 테두리에서 라벨까지 띄우는 틈(px). `site.css`의 라벨 여백과 같은 값이라야 한다 */
+  var 라벨_틈 = 4;
+  /** 자리를 보는 차례. 앞엣것부터 되는 자리를 고른다 */
+  var 라벨_자리들 = ["right", "left", "top", "bottom"];
+
+  /** 점 자리와 라벨 크기 → 그 자리에 놓았을 때 라벨이 차지하는 상자. */
+  function 라벨_상자(하나, 자리) {
+    var 틈 = (점_지름[하나.size] || 점_지름.small) / 2 + 라벨_틈;
+    if (자리 === "left") return { x: 하나.x - 틈 - 하나.w, y: 하나.y - 하나.h / 2, w: 하나.w, h: 하나.h };
+    if (자리 === "top") return { x: 하나.x - 하나.w / 2, y: 하나.y - 틈 - 하나.h, w: 하나.w, h: 하나.h };
+    if (자리 === "bottom") return { x: 하나.x - 하나.w / 2, y: 하나.y + 틈, w: 하나.w, h: 하나.h };
+    return { x: 하나.x + 틈, y: 하나.y - 하나.h / 2, w: 하나.w, h: 하나.h };
+  }
+
+  function 겹치나(가, 나) {
+    return 가.x < 나.x + 나.w && 나.x < 가.x + 가.w && 가.y < 나.y + 나.h && 나.y < 가.y + 가.h;
+  }
+
+  /**
+   * 라벨들을 겹치지 않게 놓는다 — 화면도 SDK도 모르는 순수 함수다.
+   *
+   *     놓는다([{ x, y, w, h, size }], 볼_자리?) → ["right"|"left"|"top"|"bottom"|null, …]
+   *
+   * `x`·`y`는 **점의 화면 좌표**(px)이고 `w`·`h`는 라벨 상자의 크기다. 돌려주는 것은 들어온
+   * 차례 그대로의 자리 이름이며, 네 자리가 다 막히면 `null` — 그 라벨은 감춘다.
+   *
+   * 큰 점(타고 내리는 곳)이 작은 점보다 먼저 자리를 고르고, 크기가 같으면 들어온 차례대로다.
+   * 그래서 같은 입력은 늘 같은 답을 낸다. 크기를 아직 못 잰 라벨은 첫 자리를 주되 **자리를
+   * 잡아 두지는 않는다** — 못 잰 것 때문에 잰 것이 밀려나면 안 된다.
+   */
+  function 놓는다(라벨들, 볼_자리) {
+    var 자리들 = 볼_자리 || 라벨_자리들;
+    var 큼 = function (하나) { return 하나.size === "normal" ? 1 : 0; };
+    var 차례 = 라벨들.map(function (하나, i) { return i; }).sort(function (가, 나) {
+      return (큼(라벨들[나]) - 큼(라벨들[가])) || (가 - 나);
+    });
+    var 답 = 라벨들.map(function () { return null; });
+    var 놓인것 = [];
+    차례.forEach(function (i) {
+      var 하나 = 라벨들[i];
+      if (!하나.w || !하나.h) { 답[i] = 자리들[0]; return; }
+      for (var k = 0; k < 자리들.length; k++) {
+        var 상자 = 라벨_상자(하나, 자리들[k]);
+        var 막힘 = 놓인것.some(function (있던) { return 겹치나(상자, 있던); });
+        if (!막힘) { 답[i] = 자리들[k]; 놓인것.push(상자); return; }
+      }
+    });
+    return 답;
   }
 
   var 준비됨 = false;
@@ -172,6 +230,35 @@
   }
 
   /**
+   * 지도 하나에 얹힌 라벨들의 자리를 고쳐 잡는다(ADR-0010).
+   *
+   * 자리는 화면 픽셀로 정해지므로 **확대·이동할 때마다 답이 바뀐다** — `idle`마다 다시 돈다.
+   * 크기는 글자 수로 셈하지 않고 `getBoundingClientRect`로 잰다(폰트가 환경마다 다르다).
+   * 재기 전에 감춘 것을 도로 보이게 한다 — 감춘 라벨은 크기가 0이라 다시는 자리를 못 얻는다.
+   * SDK가 점의 화면 자리를 안 알려주면 아무것도 안 한다. 그때는 CSS 기본인 오른쪽 그대로다.
+   */
+  function 라벨_자리잡기(놓인것) {
+    var 라벨들 = (놓인것 && 놓인것.라벨들) || [];
+    if (!라벨들.length) return;
+    var 투영 = 놓인것.지도.getProjection && 놓인것.지도.getProjection();
+    if (!투영 || !투영.containerPointFromCoords) return;
+    var 잰것 = 라벨들.map(function (하나) {
+      하나.요소.hidden = false;
+      하나.요소.className = "map-label";
+      var 점자리 = 투영.containerPointFromCoords(하나.위치);
+      var 상자 = 하나.요소.getBoundingClientRect && 하나.요소.getBoundingClientRect();
+      if (상자 && 상자.width) 하나.잰크기 = { w: 상자.width, h: 상자.height };
+      var 크기 = 하나.잰크기 || {};
+      return { x: 점자리.x, y: 점자리.y, w: 크기.w, h: 크기.h, size: 하나.size };
+    });
+    놓는다(잰것).forEach(function (자리, i) {
+      var 요소 = 라벨들[i].요소;
+      요소.hidden = !자리;
+      if (자리) 요소.className = "map-label map-label--" + 자리;
+    });
+  }
+
+  /**
    * 그림 하나를 타일 위에 놓는다. 선은 선대로, 점은 점대로 얹는다.
    * 지도는 자리마다 한 번만 만들고 다시 부를 때는 얹은 것만 갈아 끼운다.
    */
@@ -195,9 +282,14 @@
             var 가운데 = 놓인것.지도.getCenter();
             놓인것.지도.relayout();
             놓인것.지도.setCenter(가운데);
+            라벨_자리잡기(놓인것);
           } catch (e) { /* 자리가 사라지는 중이면 아무것도 안 한다 */ }
         });
         놓인것.지켜봄.observe(자리);
+      }
+      /* 확대·이동하면 점 사이의 픽셀이 달라져 라벨 자리도 달라진다. 멈출 때마다 다시 고른다 */
+      if (maps.event && maps.event.addListener) {
+        maps.event.addListener(놓인것.지도, "idle", function () { 라벨_자리잡기(놓인것); });
       }
       판.set(자리, 놓인것);
     }
@@ -219,13 +311,18 @@
         strokeOpacity: 0.9,
       }));
     });
+    /* 라벨은 그린 뒤에 자리를 고친다. 어느 자리가 비었는지는 점들이 다 얹혀야 알 수 있다 */
+    놓인것.라벨들 = [];
     markers.forEach(function (하나) {
       var 자리점 = 좌표(하나);
       테두리.extend(자리점);
+      var 조각 = 점_조각(하나);
+      var 라벨 = 조각.querySelector && 조각.querySelector(".map-label");
+      if (라벨) 놓인것.라벨들.push({ 위치: 자리점, size: 하나.size, 요소: 라벨 });
       놓인것.얹은것.push(new maps.CustomOverlay({
         map: 놓인것.지도,
         position: 자리점,
-        content: 점_조각(하나),
+        content: 조각,
         xAnchor: 0,
         yAnchor: 0.5,
         // 작은 점이 큰 점의 라벨을 가리지 않게 큰 점을 위에 둔다
@@ -235,6 +332,8 @@
     // 카드가 막 끼워진 참이면 자리의 크기를 지도가 아직 모른다
     놓인것.지도.relayout();
     놓인것.지도.setBounds(테두리, 28, 28, 28, 28);
+    /* `setBounds`가 `idle`을 부르지만 그것만 믿지 않는다 — 테두리가 그대로면 안 부른다 */
+    라벨_자리잡기(놓인것);
   }
 
 
@@ -524,7 +623,7 @@
     그린다();
   });
 
-  /* 그리는 함수 하나와, 좌표 조각을 그림으로 옮기는 순수 함수 둘(CONTEXT 「map」).
-     두 탭의 지도가 `draw` 하나를 함께 부른다 — `journey`·`route`는 그 입력을 만드는 자리다 */
-  window.busMap = { draw: draw, journey: journey, route: route };
+  /* 그리는 함수 하나와 순수 함수 셋(CONTEXT 「map」). 두 탭의 지도가 `draw` 하나를 함께 부른다 —
+     `journey`·`route`는 그 입력을 만들고, `놓는다`는 얹은 뒤 라벨 자리를 고른다 */
+  window.busMap = { draw: draw, journey: journey, route: route, 놓는다: 놓는다 };
 })();

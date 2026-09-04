@@ -26,6 +26,10 @@ const 색표 = {
   "--added-dot": "#1d4ed8",
 };
 
+/** 글자 하나의 너비(px)와 줄 높이. 진짜 폰트가 아니라 검사가 셈할 수 있는 값이다 */
+const 글자폭 = 8;
+const 줄높이 = 16;
+
 /** 가짜 DOM 조각 하나. `map.js`가 쓰는 것만 있다. */
 function 조각(tag) {
   return {
@@ -33,9 +37,18 @@ function 조각(tag) {
     className: "",
     style: {},
     textContent: "",
+    hidden: false,
     children: [],
     append(...애들) { this.children.push(...애들); },
     replaceChildren(...애들) { this.children = 애들; },
+    /* `map.js`는 라벨을 이걸로 집는다. 자식 하나 깊이면 되므로 그만큼만 흉내 낸다 */
+    querySelector(선택자) { return 자식(this, 선택자.replace(".", "")); },
+    /* 진짜 폰트가 없으니 글자 수로 잰다. 감춘 라벨은 크기가 0이다 — 브라우저와 같다 */
+    getBoundingClientRect() {
+      return this.hidden
+        ? { width: 0, height: 0 }
+        : { width: this.textContent.length * 글자폭, height: 줄높이 };
+    },
   };
 }
 
@@ -46,7 +59,17 @@ function 자식(부모, 갈래) {
 
 /** `map.js`를 가짜 브라우저에 실어 `window.busMap`과 얹힌 것 목록을 돌려준다. */
 function 싣는다() {
-  const 얹힌 = { polylines: [], overlays: [], maps: [], observers: [] };
+  const 얹힌 = { polylines: [], overlays: [], maps: [], observers: [], 듣는것: [] };
+
+  /* 점의 화면 자리를 내는 가짜 투영. 검사가 `배율`을 바꾸면 확대·축소가 된다 —
+     진짜 타일은 없지만 라벨 자리 잡기가 보는 것은 이 픽셀 값뿐이다 */
+  const 투영 = {
+    배율: 1000,
+    기준: { lat: 35.13, lng: 126.80 },
+    containerPointFromCoords(점) {
+      return { x: (점.lng - 투영.기준.lng) * 투영.배율, y: (투영.기준.lat - 점.lat) * 투영.배율 };
+    },
+  };
 
   class LatLng {
     constructor(lat, lng) { this.lat = lat; this.lng = lng; }
@@ -64,6 +87,7 @@ function 싣는다() {
       얹힌.maps.push(this);
     }
     relayout() { this.relayout횟수 += 1; }
+    getProjection() { return 투영; }
     getCenter() { return this.가운데; }
     setCenter(점) { this.가운데 = 점; }
     setBounds(테두리, ...여백) { this.테두리 = 테두리; this.여백 = 여백; }
@@ -96,6 +120,9 @@ function 싣는다() {
       maps: {
         load: (준비) => 준비(),
         LatLng, LatLngBounds, Map: 지도, Polyline, CustomOverlay,
+        event: {
+          addListener(대상, 이름, 할일) { 얹힌.듣는것.push({ 대상, 이름, 할일 }); },
+        },
       },
     },
   };
@@ -103,7 +130,7 @@ function 싣는다() {
   const 상자 = { window, document, ResizeObserver, WeakMap, console };
   상자.globalThis = 상자;
   vm.runInNewContext(readFileSync(join(여기, "map.js"), "utf8"), 상자, { filename: "map.js" });
-  return { busMap: window.busMap, 얹힌 };
+  return { busMap: window.busMap, 얹힌, 투영 };
 }
 
 /** 검사마다 쓰는 자리 하나. */
@@ -299,4 +326,148 @@ test("형상을 받으면 선이 도로를 타고, 못 받으면 정류장 직�
   // 점은 형상이 있든 없든 정류장 좌표 그대로다 — 점은 사실, 선은 추정(ADR-0009)
   assert.equal(도로.markers.length, 직선.markers.length);
   console.log("MAP-G10 OK");
+});
+
+/* ── 라벨 자리 (ADR-0010) ────────────────────────────────────────────
+   `map.js`의 셈을 그대로 베끼지 않고 **검사가 따로 적는다** — 같은 식을 두 번 적어야 한쪽이
+   틀렸을 때 어긋난다. 점 반지름 밖으로 4px 띄운 자리가 라벨 상자다 */
+const 점지름 = { small: 8, normal: 15 };
+
+function 상자(하나, 자리) {
+  const 틈 = 점지름[하나.size] / 2 + 4;
+  if (자리 === "left") return { x: 하나.x - 틈 - 하나.w, y: 하나.y - 하나.h / 2, w: 하나.w, h: 하나.h };
+  if (자리 === "top") return { x: 하나.x - 하나.w / 2, y: 하나.y - 틈 - 하나.h, w: 하나.w, h: 하나.h };
+  if (자리 === "bottom") return { x: 하나.x - 하나.w / 2, y: 하나.y + 틈, w: 하나.w, h: 하나.h };
+  return { x: 하나.x + 틈, y: 하나.y - 하나.h / 2, w: 하나.w, h: 하나.h };
+}
+
+const 겹치나 = (가, 나) =>
+  가.x < 나.x + 나.w && 나.x < 가.x + 가.w && 가.y < 나.y + 나.h && 나.y < 가.y + 가.h;
+
+/** 자리를 받은 라벨들이 서로 겹치는 쌍의 수. 이슈 #68이 라이브에서 세던 그 셈이다 */
+function 겹친쌍(라벨들, 자리들) {
+  const 놓인 = 라벨들
+    .map((하나, i) => (자리들[i] ? 상자(하나, 자리들[i]) : null))
+    .filter(Boolean);
+  let 셈 = 0;
+  for (let i = 0; i < 놓인.length; i += 1) {
+    for (let j = i + 1; j < 놓인.length; j += 1) if (겹치나(놓인[i], 놓인[j])) 셈 += 1;
+  }
+  return 셈;
+}
+
+/** 같은 자리에 선 라벨 다섯 — 넷은 네 자리로 흩어지고 다섯째는 갈 데가 없다 */
+const 한자리에 = () =>
+  [1, 2, 3, 4, 5].map((번호) => ({ x: 100, y: 100, w: 60, h: 16, size: "normal", 번호 }));
+
+test("놓는다는 겹치는 라벨을 비키게 하고, 자리가 없으면 감춘다", () => {
+  const { busMap } = 싣는다();
+  const 라벨들 = 한자리에();
+
+  const 자리들 = 칸(busMap.놓는다(라벨들));
+  assert.deepEqual(자리들, ["right", "left", "top", "bottom", null],
+    "오른쪽 → 왼쪽 → 위 → 아래 차례로 보고, 다 막히면 감춘다");
+  assert.equal(겹친쌍(라벨들, 자리들), 0, "놓인 라벨끼리는 겹치지 않는다");
+
+  // 같은 입력에 같은 답 — 자리가 프레임마다 흔들리면 라벨이 춤춘다
+  assert.deepEqual(칸(busMap.놓는다(한자리에())), 자리들);
+
+  // 멀리 떨어진 라벨은 아무도 안 밀어낸다 — 기본은 오른쪽 그대로다
+  assert.deepEqual(칸(busMap.놓는다([
+    { x: 100, y: 100, w: 60, h: 16, size: "normal" },
+    { x: 400, y: 400, w: 60, h: 16, size: "normal" },
+  ])), ["right", "right"]);
+  console.log("MAP-G11 OK");
+});
+
+test("큰 점이 먼저 자리를 고르고, 못 잰 라벨은 남을 밀어내지 않는다", () => {
+  const { busMap } = 싣는다();
+
+  // 작은 점이 먼저 들어와도 오른쪽은 큰 점(타고 내리는 곳) 차지다
+  assert.deepEqual(칸(busMap.놓는다([
+    { x: 100, y: 100, w: 60, h: 16, size: "small" },
+    { x: 100, y: 100, w: 60, h: 16, size: "normal" },
+  ])), ["left", "right"]);
+
+  // 크기를 아직 못 잰 것(첫 프레임)은 첫 자리를 받되 자리를 잡아 두지 않는다
+  assert.deepEqual(칸(busMap.놓는다([
+    { x: 100, y: 100, w: 0, h: 0, size: "normal" },
+    { x: 100, y: 100, w: 60, h: 16, size: "normal" },
+  ])), ["right", "right"]);
+  console.log("MAP-G12 OK");
+});
+
+/* 환승 2회 경로 — 타고 내리는 곳 여섯이 한 화면에 몰린다. 이슈 #68이 라이브에서 잰
+   「라벨 6개 · 겹친 쌍 6개」와 같은 모양이다 */
+const 몰린경로 = {
+  network: "before",
+  from: { lat: 35.1290, lng: 126.8000 },
+  to: { lat: 35.1250, lng: 126.8040 },
+  legs: [
+    [{ lat: 35.1290, lng: 126.8005, name: "가정류장" }, { lat: 35.1288, lng: 126.8010, name: "나정류장" }],
+    [{ lat: 35.1286, lng: 126.8014, name: "다정류장" }, { lat: 35.1284, lng: 126.8018, name: "라정류장" }],
+    [{ lat: 35.1282, lng: 126.8022, name: "마정류장" }, { lat: 35.1280, lng: 126.8026, name: "바정류장" }],
+  ],
+};
+
+test("draw가 얹은 라벨의 자리를 실제로 고쳐 잡는다 — 겹친 쌍 0", () => {
+  const { busMap, 얹힌, 투영 } = 싣는다();
+  busMap.draw(자리(), busMap.journey([몰린경로]));
+
+  const 라벨들 = 얹힌.overlays
+    .map((것) => ({ 점: 것.position, 요소: 자식(것.content, "map-label") }))
+    .filter((것) => 것.요소);
+  assert.equal(라벨들.length, 6, "타고 내리는 곳 여섯에 라벨이 붙는다");
+  assert.equal(얹힌.overlays.length, 6, "점은 라벨과 상관없이 다 얹힌다 — 사실은 안 지운다");
+
+  const 잰것 = 라벨들.map((하나) => {
+    const 자리점 = 투영.containerPointFromCoords(하나.점);
+    return { x: 자리점.x, y: 자리점.y, w: 하나.요소.textContent.length * 글자폭, h: 줄높이,
+      size: "normal" };
+  });
+  const 고른자리 = 라벨들.map((하나) => (하나.요소.hidden
+    ? null
+    : String(하나.요소.className).replace("map-label map-label--", "")));
+
+  assert.equal(겹친쌍(잰것, 고른자리), 0, "화면에 남은 라벨끼리 겹치지 않는다");
+  assert.ok(고른자리.some((자리) => 자리 && 자리 !== "right"),
+    "적어도 하나는 오른쪽에서 비켰다 — 자리 고르기가 실제로 돌았다는 증거");
+  assert.ok(고른자리.filter(Boolean).length >= 2, "감추기만 하고 끝내지 않는다");
+  // 자리가 넷뿐이라 여섯은 다 못 선다. 못 선 것은 **감춘다** — 겹쳐 읽히느니 없는 편이 낫다
+  const 감춘것 = 라벨들.filter((하나) => 하나.요소.hidden);
+  assert.equal(감춘것.length, 라벨들.length - 고른자리.filter(Boolean).length);
+  assert.ok(감춘것.length >= 1, "자리가 모자라면 감춘 라벨이 있다");
+  console.log("MAP-G13 OK · 라벨 " + 라벨들.length + "개 · 겹친 쌍 0 · 감춤 " + 감춘것.length);
+});
+
+test("확대·이동하면 자리를 다시 고른다 — idle에 다시 돈다", () => {
+  const { busMap, 얹힌, 투영 } = 싣는다();
+  busMap.draw(자리(), busMap.journey([몰린경로]));
+
+  const 요소들 = 얹힌.overlays.map((것) => 자식(것.content, "map-label")).filter(Boolean);
+  assert.ok(요소들.some((요소) => 요소.hidden || 요소.className !== "map-label map-label--right"),
+    "좁게 보면 비키거나 감춘 라벨이 있다");
+
+  const 듣기 = 얹힌.듣는것.filter((것) => 것.이름 === "idle");
+  assert.equal(듣기.length, 1, "지도마다 `idle` 하나");
+  투영.배율 = 100000;              // 크게 확대하면 점 사이가 멀어진다
+  듣기[0].할일();
+  assert.deepEqual(요소들.map((요소) => 요소.className), 요소들.map(() => "map-label map-label--right"),
+    "널찍해지면 다들 기본 자리로 돌아온다");
+  assert.deepEqual(요소들.map((요소) => 요소.hidden), 요소들.map(() => false),
+    "감췄던 라벨도 자리가 나면 다시 보인다");
+  console.log("MAP-G14 OK");
+});
+
+test("개편 전·후가 같은 정류장에서 타면 라벨은 하나다", () => {
+  const { busMap } = 싣는다();
+  const 같은데서_탄다 = { ...개편후, legs: [[
+    { lat: 35.101, lng: 126.801, name: "가정류장" },
+    { lat: 35.129, lng: 126.829, name: "라정류장" },
+  ]] };
+  const 그림 = busMap.journey([개편전, 같은데서_탄다]);
+  const 라벨들 = 칸(그림.markers).map((점) => 점.label).filter(Boolean);
+  assert.deepEqual(라벨들.filter((글) => 글.startsWith("가정류장")), ["가정류장 승차"],
+    "같은 자리의 승차는 점 하나이므로 라벨도 하나다");
+  console.log("MAP-G15 OK");
 });

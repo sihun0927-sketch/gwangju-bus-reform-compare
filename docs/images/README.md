@@ -51,6 +51,11 @@ python tools/render_canvas.py mock-1-place-result.dc.html   # 하나만
 | `check-5-4-place-tab.jpg` | #5 · 장소 탭(입력칸 자리만) |
 | `check-5-5-swap-shows-result.jpg` | #5 · 목록 끝의 두암181을 눌러도 카드가 화면 안에 뜬다 |
 | `check-36-1-map-slot-without-key.jpg` | #36 · 키 없이 찍은 노선 지도 자리 |
+| `check-68-1-labels-before.jpg` | #68 · 라벨이 서로를 덮던 경로 지도(라벨 8개 · 겹친 쌍 5) |
+| `check-68-2-labels-after.jpg` | #68 · 같은 경로, ADR-0010 뒤(겹친 쌍 0 · 감춘 라벨 1) |
+
+`check-68-*` 둘은 `node tools/measure_labels.mjs 3 --only 4 [--ref <참조>] --png <파일>`이 찍은
+것이라 **다시 뽑을 수 있다.** 타일은 없다(그 도구가 세우는 것은 점·선·라벨뿐이다).
 
 괄호 안 수치는 **찍을 당시**의 것이다. 그 뒤 명칭 사전(#3)이 들어가 같은 화면이
 문흥18 ↔ 간선18은 49·9·3 / 52·10·4, ↔ 지선10은 18·40·38 / 16·46·37로 나온다.

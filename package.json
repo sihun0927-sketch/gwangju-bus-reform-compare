@@ -6,7 +6,7 @@
   "scripts": {
     "build": "python -m tools.build",
     "pretest": "python -m tools.build",
-    "test": "node --test \"worker/*.test.js\"",
+    "test": "node --test \"worker/*.test.js\" \"tools/build/*.test.js\"",
     "deploy": "wrangler deploy",
     "deploy:dry": "wrangler deploy --dry-run"
   },
