@@ -17,6 +17,7 @@ from html import escape
 from pathlib import Path
 from urllib.parse import quote
 
+from .route_card import NO_REPLACEMENT
 from .route_list import Row
 
 TITLE = "버스개편 비교"
@@ -45,7 +46,7 @@ ROUTE_FIELD = ("number", "노선번호")
 ROUTE_HINT = "번호를 치면 후보가 뜹니다. 목록에 있는 번호를 골라야 카드가 열립니다."
 # 후보 목록의 id. 입력칸의 `list=`가 이것을 가리킨다
 CANDIDATES_ID = "route-numbers"
-CANDIDATE_NONE = "대체 노선 없음"
+CANDIDATE_NONE = NO_REPLACEMENT
 
 # 카드가 끼워지는 자리. 목록 표의 줄마다 hx-target이 이것을 가리킨다 — 한 화면에 카드는 하나뿐이다
 RESULT_ID = "result"
