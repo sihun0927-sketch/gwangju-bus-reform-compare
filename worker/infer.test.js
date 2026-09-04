@@ -146,7 +146,7 @@ test("제공자 표가 저마다 다른 키 이름을 쓴다 — 겹치면 하�
 test("키가 없어도 조각이 나오고 계산값을 보인다", async () => {
   const html = fragment(기록, null);
   assert.match(html, /data-state="계산"/);
-  assert.match(html, /12\.6분/);
+  assert.match(html, /13분/);
   assert.match(html, /추론 없이 계산값/);
 });
 
@@ -308,6 +308,33 @@ test("낮은 온도와 구조화 출력을 함께 보낸다 — 흔들림 손잡
   assert.equal(보냄.messages[1].role, "user");
 });
 
+test("?why=1은 까닭 한 줄만 준다 — 경로 줄에 조각 전체는 넘친다", async () => {
+  const 한줄 = await respond("급행03", {}, undefined, new URLSearchParams("why=1"));
+  const 글 = await 한줄.text();
+  assert.match(글, /^<p class="why-line">[^<]+<\/p>$/, 글);
+  assert.ok(!글.includes("headway-now"), "조각 전체가 아니다");
+  assert.ok(글.length < 400, `한 줄이어야 한다: ${글.length}자`);
+
+  // 모형이 이유를 말했으면 그것을 쓴다
+  const client = 가짜([답(13, 15, "밴드 아래쪽이 수요에 맞는다")]);
+  const 추론 = await respond("급행03", {}, { client, samples: 1 }, new URLSearchParams("why=1"));
+  assert.match(await 추론.text(), /밴드 아래쪽이 수요에 맞는다/);
+});
+
+test("?why=1도 없는 번호에 200과 안내를 준다", async () => {
+  const res = await respond("없는번호9999", {}, undefined, new URLSearchParams("why=1"));
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /낼 수 없습니다/);
+});
+
+test("배차간격은 정수로 적는다 — 추정에 소수는 없는 정밀도다", () => {
+  const html = fragment(기록, settle([답(12.64, 13.91)], 기록));
+  assert.match(html, /class="headway-now">13분/, html.slice(0, 160));
+  assert.ok(!/\d\.\d분/.test(html), `소수 분이 남았다: ${html.match(/[\d.]+분/g)}`);
+  // 범위도 정수다 — 한쪽만 반올림하면 「9.6~75분」처럼 어긋난다
+  assert.ok(!/\d\.\d~|~\d+\.\d/.test(fragment(갈린기록, null)), "범위 양 끝이 다 정수여야 한다");
+});
+
 test("온도를 거부하는 모형이면 그것만 빼고 한 번 다시 부른다", async () => {
   const client = 가짜([답(13)], { 온도거부: true });
   const 모은것 = await infer(기록, {}, { client, samples: 1 });
@@ -363,7 +390,7 @@ test("조각에 배차간격 · 적합 배차간격 · 운용 대수 · 「?」 
 
 test("확신이 낮은 노선은 조각도 범위로 말한다", () => {
   const html = fragment(갈린기록, null);
-  assert.match(html, /9\.6~74\.7분/);
+  assert.match(html, /10~75분/);
   assert.match(html, /크게 갈리는 노선/);
 });
 

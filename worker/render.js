@@ -116,10 +116,23 @@ const 상태 = (journey) => {
 const 배차_없음 = "정보 없음";
 const 배차_값 = (v, 추정 = false) => {
   if (typeof v !== "number") return 배차_없음;
-  // 소수 한 자리까지만. 추정값은 12.6처럼 떨어지지 않는 수라 그대로 두면 자릿수가 튄다
-  const 분 = Number.isInteger(v) ? v : Math.round(v * 10) / 10;
-  return 추정 ? `약 ${분}분(추정)` : `${분}분`;
+  // **분은 정수로 적는다.** 추정값은 12.6처럼 떨어지지 않는 수인데, 소수까지 보이면 없는
+  // 정밀도를 주장하는 셈이다 — 「약」이 이미 어림임을 말하므로 자릿수까지 보일 이유가 없다
+  return 추정 ? `약 ${Math.round(v)}분` : `${Math.round(v)}분`;
 };
+
+/**
+ * 추정값 옆의 「?」 상자. **열 때 한 번만** Worker에게 까닭 한 줄을 물어 온다.
+ *
+ * 카드를 그릴 때 미리 물으면 경로 하나에 노선이 셋까지라 요청이 셋 늘고, 대개는 아무도 안 연다.
+ * `<details>`라 여닫는 데 우리 스크립트가 필요 없고, `toggle once`가 처음 열 때만 부른다.
+ */
+const 까닭_상자 = (network, route) =>
+  network.headwayEstimated(route)
+    ? `<details class="why"><summary aria-label="왜 이렇게 추정했는지">?</summary>` +
+      `<p hx-get="/headway/${encodeURIComponent(노선_이름(network, route))}?why=1"` +
+      ` hx-trigger="toggle once from:closest details" hx-swap="outerHTML">여는 중…</p></details>`
+    : "";
 
 /**
  * 노선망 하나의 카드. `journey`가 없으면 머리가 「경로 없음」이고 안이 한 줄이다.
@@ -271,6 +284,7 @@ function 핀_조각(network, 핀) {
   const 아래 = 핀.leg
     ? `<span class="route"><b class="chip">${노선_이름(network, 핀.leg.route)}</b></span>`
       + `<span class="sub">배차간격 ${배차_값(network.headway(핀.leg.route), network.headwayEstimated(핀.leg.route))}`
+      + `${까닭_상자(network, 핀.leg.route)}`
       + ` · ${핀.leg.stopsPassed}개 정류장</span>`
     : 핀.환승도보 === undefined
       ? ""
