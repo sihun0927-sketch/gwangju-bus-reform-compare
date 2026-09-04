@@ -52,6 +52,26 @@ export const WALK_SPEED_KMH = 4;
  */
 export const WALK_DETOUR_FACTOR = 1.3;
 
+/**
+ * 노선 하나를 기다리는 시간을 그 노선 배차간격의 이만큼으로 본다 (2026-09-04).
+ *
+ * 아무 때나 정류장에 선다고 보면 기다리는 시간의 기댓값이 배차간격의 절반이다.
+ *
+ * **이 값은 순위에만 쓰고 카드의 예상 시간에는 안 더한다**(`rank`의 `rankSeconds`). 배차간격은
+ * 개편 전이 공표값, 개편 후가 추정이라(ADR-0010) 둘을 더한 시간은 두 카드가 다른 자로 잰 값이
+ * 된다 — 견주라고 나란히 세운 숫자가 그러면 안 된다. 대신 「어느 길이 빠른가」를 정할 때는
+ * 배차 37분 노선으로 갈아타는 길이 곧장 가는 길보다 빠르다고 말하지 않아야 해서 여기서는 센다.
+ */
+export const HEADWAY_WAIT_SHARE = 0.5;
+
+/**
+ * 배차간격을 모르는 노선의 배차간격(분)을 이 값으로 본다. 개편 전 순환01 하나뿐이다.
+ *
+ * 개편 전 공표값 110개의 중앙값이다. 0으로 두면 그 노선만 안 기다리고 타는 것이 되어 순위에서
+ * 공짜로 이긴다 — 모르는 것을 「좋은 것」으로 읽지 않게 가운데 값을 준다.
+ */
+export const HEADWAY_UNKNOWN_MIN = 20;
+
 /** 「다른 경로 더 보기」로 펼치는 경로 수. 기본 경로 하나 뒤에 붙는다. */
 export const ALTERNATIVE_JOURNEYS = 2;
 
@@ -74,6 +94,7 @@ export const PLACE_CACHE_SECONDS = 24 * 60 * 60;
 export const PLACE_SEARCH_MARGIN_M = 5000;
 
 const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_MINUTE = 60;
 const METRES_PER_KM = 1000;
 
 /** 도보 거리(m)를 걷는 데 걸리는 시간(초). 직선거리에 우회 몫을 곱한 길이를 걷는다고 본다. */
@@ -91,4 +112,15 @@ function walkSeconds(metres) {
  */
 export function estimateSeconds(stopsPassed, walkMetres) {
   return stopsPassed * SECONDS_PER_STOP + walkSeconds(walkMetres);
+}
+
+/**
+ * 노선 하나를 기다리는 시간(초). 순위에만 쓰고 카드에는 안 나간다 (CONTEXT 「추정 소요 시간」).
+ *
+ * 배차간격(분)이 없는 노선은 `HEADWAY_UNKNOWN_MIN`으로 본다. 구간마다 하나씩 붙는 값이라
+ * 더해 나가도 되고, 그래서 `search`의 가지치기가 도보처럼 이것도 쌓아 가며 견줄 수 있다.
+ */
+export function waitSeconds(headwayMinutes) {
+  const 배차 = typeof headwayMinutes === "number" ? headwayMinutes : HEADWAY_UNKNOWN_MIN;
+  return 배차 * SECONDS_PER_MINUTE * HEADWAY_WAIT_SHARE;
 }

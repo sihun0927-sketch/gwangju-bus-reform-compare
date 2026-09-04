@@ -20,7 +20,7 @@
  * `legs[0].board`와 마지막 `alight`만 도보권 후보라 `walk`(지점까지 도보 m)를 달고 있다. 가운데
  * 정류장은 번들에서 꺼낸 줄이고, 그 사이를 걷는 거리는 `transferWalks`에 구간 사이마다 하나씩 있다.
  */
-import { MAX_TRANSFERS, estimateSeconds } from "./rules.js";
+import { MAX_TRANSFERS, estimateSeconds, waitSeconds } from "./rules.js";
 
 /**
  * 출발 후보에서 도착 후보까지 가는 경로 전부. 환승은 `MAX_TRANSFERS`까지다.
@@ -60,7 +60,7 @@ function 하차표(network, to) {
  * 그 사슬을 거슬러 한 번에 펴 놓는다. 갈아타기 한 바퀴에 만드는 칸이 수천 개라, 칸마다
  * 배열을 복사하면 그 복사가 요청당 CPU의 대부분이 된다.
  */
-const 칸 = (앞, 탈것, board, alight, alightOrder, stops, walk) => ({
+const 칸 = (앞, 탈것, board, alight, alightOrder, stops, walk, wait) => ({
   앞,
   route: 탈것.route,
   side: 탈것.side,
@@ -72,14 +72,17 @@ const 칸 = (앞, 탈것, board, alight, alightOrder, stops, walk) => ({
   alightOrder,
   stops,
   walk,
-  seconds: estimateSeconds(stops, walk),
+  wait,
+  // 가지치기가 견주는 값은 `rank`의 잣대 ①과 같은 것이라야 한다 — 배차 대기까지 든 값이다.
+  // 다르면 탐색이 버린 것이 순위에서 1등일 수 있다
+  seconds: estimateSeconds(stops, walk) + wait,
 });
 
 /** 출발 후보에서 바로 탈 수 있는 자리 전부. 여기서 시작해 구간을 하나씩 잇는다. */
 function 첫_승차(network, from) {
   return from.flatMap((stop) =>
     (network.rides.get(stop.id) ?? []).map((탈것) =>
-      칸(null, 탈것, stop, null, 0, 0, stop.walk)),
+      칸(null, 탈것, stop, null, 0, 0, stop.walk, waitSeconds(network.headway(탈것.route)))),
   );
 }
 
@@ -95,7 +98,8 @@ function 내린다(손, 하차, 경로) {
  * 타고 있는 자리마다 환승 지점에서 내려 다른 노선으로 갈아탄다.
  *
  * 한 경로에서 같은 노선을 두 번 타지 않는다 — 되돌아 탈 바에는 안 내리면 된다.
- * 노선 · 방향 · 승차 순번이 같으면 싼 쪽만 남긴다.
+ * 노선 · 방향 · 승차 순번이 같으면 싼 쪽만 남긴다 — 싼지는 `rank`의 잣대 ①과 같은 자로,
+ * 곧 배차 대기까지 든 값으로 잰다.
  *
  * 그 둘이 겹치는 자리에 아주 좁은 구멍이 하나 있다. 같은 자리에 이르는 사슬 둘 중 **느린 쪽만**
  * 아직 안 탄 노선이 있고 다음 구간이 하필 그 노선이면, 남은 빠른 사슬이 「같은 노선 두 번 금지」에
@@ -111,11 +115,14 @@ function 갈아탄다(network, 손) {
       if (내림 === null) continue;
       const stops = 앞.stops + (내림 - 앞.order);
       const walk = 앞.walk + 이음.walk;
-      const seconds = estimateSeconds(stops, walk);
+      // 탄 몫은 자리마다 한 번만 잰다. 대기는 갈아탈 노선마다 달라 안쪽에서 더한다
+      const 탄_초 = estimateSeconds(stops, walk);
       for (const 탈것 of 이음.thereRides) {
+        const wait = 앞.wait + waitSeconds(network.headway(탈것.route));
+        const seconds = 탄_초 + wait;
         const 있던 = 다음.get(탈것.spot);
         if (있던 && 있던.seconds <= seconds) continue;
-        다음.set(탈것.spot, 칸(앞, 탈것, 이음.there, 이음.here, 내림, stops, walk));
+        다음.set(탈것.spot, 칸(앞, 탈것, 이음.there, 이음.here, 내림, stops, walk, wait));
       }
     }
   }

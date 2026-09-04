@@ -39,7 +39,7 @@ function 카드(network, from, to, places) {
   if (!도착.length) return render.outOfReach(network);
 
   const 출발 = walkableStops(network, from, { expand: true });
-  const [기본, ...나머지] = rank(journeys(network, 출발, 도착));
+  const [기본, ...나머지] = rank(journeys(network, 출발, 도착), network);
   if (!기본) return render.card(network, 기본);
   return render.card(network, 기본, {
     places,
