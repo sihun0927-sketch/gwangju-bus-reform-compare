@@ -1,5 +1,5 @@
 /**
- * 순위 — 추정 소요 시간 → 환승 횟수 → 도보 합계 (CONTEXT 「추정 소요 시간」).
+ * 순위 — 환승 0회 → 추정 소요 시간 → 환승 1회 → 도보 합계 → 환승 2회 (CONTEXT 「추정 소요 시간」).
  *
  * 시각표가 없어 시간은 추정이다. 무엇을 어떻게 세는지는 `rules`의 `estimateSeconds`에 있고 —
  * 여기서는 그 값으로 줄을 세우기만 한다. 자료가 들어오면 `rules`만 바꾼다.
@@ -8,7 +8,36 @@
  * 같은 답이 셋인 것과 다르지 않다. 환승 경로도 같다 — 「좌석02 → 간선18」이 갈아타는 자리만
  * 달리해 둘 나오지 않는다.
  */
-import { estimateSeconds } from "./rules.js";
+import { MAX_TRANSFERS, estimateSeconds } from "./rules.js";
+
+/**
+ * 줄 세우는 잣대 다섯. 앞의 것이 같을 때만 뒤의 것을 본다 (2026-09-04).
+ *
+ *     ① 환승 0회 → ② 추정 소요 시간 → ③ 환승 1회 → ④ 도보 합계 → ⑤ 환승 2회
+ *
+ * **환승 횟수가 시간을 사이에 두고 갈라져 있다.** 갈아타지 않는 길은 아무리 느려도 1등이고,
+ * 갈아타는 길끼리는 시간이 먼저다 — 이미 갈아타기로 한 사람에게는 한 번이냐 두 번이냐보다
+ * 언제 닿느냐가 크다. 환승 한 축으로 묶어 「시간 → 환승」이라 적으면 이 둘을 못 가른다.
+ *
+ * ⑤는 `MAX_TRANSFERS`가 2인 동안은 ③이 이미 갈라 놓아 한 번도 안 불린다. 상한을 올리면
+ * 그때부터 일한다 — 잣대를 다섯으로 적어 둔 대로 남긴다.
+ */
+const 잣대 = [
+  (j) => (j.transfers === 0 ? 0 : 1),
+  (j) => j.seconds,
+  (j) => (j.transfers === 1 ? 0 : 1),
+  (j) => j.walk,
+  (j) => (j.transfers === MAX_TRANSFERS ? 1 : 0),
+];
+
+/** 잣대를 차례로 대 본다. 다 같으면 0 — 그때는 먼저 찾은 것이 앞선다. */
+function 견준다(a, b) {
+  for (const 재기 of 잣대) {
+    const 차 = 재기(a) - 재기(b);
+    if (차) return 차;
+  }
+  return 0;
+}
 
 /**
  * 경로 하나에 지표 넷을 붙인다 — `walks` · `walk` · `stopsPassed` · `seconds`.
@@ -39,9 +68,7 @@ export function measure(journey) {
  */
 export function rank(journeys) {
   const 잰 = journeys.map(measure);
-  잰.sort(
-    (a, b) => a.seconds - b.seconds || a.transfers - b.transfers || a.walk - b.walk,
-  );
+  잰.sort(견준다);
 
   const 남길 = [];
   const 본_조합 = new Set();
