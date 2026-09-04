@@ -44,8 +44,13 @@ function 자식(부모, 갈래) {
   return 부모.children.find((애) => String(애.className).split(" ").includes(갈래)) ?? null;
 }
 
-/** `map.js`를 가짜 브라우저에 실어 `window.busMap`과 얹힌 것 목록을 돌려준다. */
-function 싣는다() {
+/**
+ * `map.js`를 가짜 브라우저에 실어 `window.busMap`과 얹힌 것 목록을 돌려준다.
+ *
+ * `표`는 선택자 하나에 조각 하나를 짝지은 것이다 — 가짜 `document.querySelector`가 이것만 보고
+ * 답한다. 손잡이(`htmx:afterSwap` 같은)가 껍데기를 어떻게 더듬는지 재는 검사가 쓴다.
+ */
+function 싣는다(표) {
   const 얹힌 = { polylines: [], overlays: [], maps: [], observers: [] };
 
   class LatLng {
@@ -82,11 +87,12 @@ function 싣는다() {
     disconnect() {}
   }
 
+  const 손잡이 = {};
   const document = {
     documentElement: 조각("html"),
     createElement: 조각,
-    addEventListener() {},
-    querySelector() { return null; },
+    addEventListener(이름, 할일) { 손잡이[이름] = 할일; },
+    querySelector(선택자) { return (표 ?? {})[선택자] ?? null; },
     querySelectorAll() { return []; },
   };
   const window = {
@@ -103,7 +109,7 @@ function 싣는다() {
   const 상자 = { window, document, ResizeObserver, WeakMap, console };
   상자.globalThis = 상자;
   vm.runInNewContext(readFileSync(join(여기, "map.js"), "utf8"), 상자, { filename: "map.js" });
-  return { busMap: window.busMap, 얹힌 };
+  return { busMap: window.busMap, 얹힌, 손잡이 };
 }
 
 /** 검사마다 쓰는 자리 하나. */
@@ -299,4 +305,44 @@ test("형상을 받으면 선이 도로를 타고, 못 받으면 정류장 직�
   // 점은 형상이 있든 없든 정류장 좌표 그대로다 — 점은 사실, 선은 추정(ADR-0009)
   assert.equal(도로.markers.length, 직선.markers.length);
   console.log("MAP-G10 OK");
+});
+
+/** 경로 카드 하나 흉내 — `되짚는다`가 읽는 것(경로 키와 좌표)만 있다. */
+function 카드(키, 좌표) {
+  const 것 = 조각("article");
+  것.dataset = { journey: 키 };
+  것.querySelector = (선택자) => (선택자 === ":scope > script.geometry"
+    ? { textContent: JSON.stringify(좌표) }
+    : null);
+  return 것;
+}
+
+/** 갈린 조각 흉내. `감싼것`은 그 조각을 감싸는 것의 선택자다 — `closest`가 그것에만 답한다. */
+function 갈린조각(감싼것) {
+  return {
+    closest: (선택자) => (선택자 === 감싼것 ? 조각("div") : null),
+    matches: () => false,
+    querySelector: () => null,
+  };
+}
+
+test("자동완성 후보가 갈려도 지도는 보던 자리를 지킨다", () => {
+  const 곳 = 자리();
+  곳.closest = () => ({ hidden: false });
+  const { 얹힌, 손잡이 } = 싣는다({
+    "#journey-map-canvas": 곳,
+    'article.journey-card[data-network="before"]:not(.alternative)': 카드("ㄱ", 개편전),
+    'article.journey-card[data-network="after"]:not(.alternative)': 카드("ㄴ", 개편후),
+  });
+  const 갈렸다 = 손잡이["htmx:afterSwap"];
+
+  // 장소 자동완성은 글자마다 갈린다. 여기서 다시 그리면 `setBounds`가 시민이 옮겨 둔 자리와
+  // 배율을 글자마다 되돌린다 — 지도를 보며 목적지를 고쳐 치면 지도가 한 글자에 튀어 달아난다
+  갈렸다({ target: 갈린조각(".place-candidate-list") });
+  assert.equal(얹힌.maps.length, 0, "후보 목록이 갈린 것으로는 지도를 건드리지 않는다");
+
+  // 카드가 갈린 것은 그릴 것이 바뀐 것이다 — 그때는 그린다
+  갈렸다({ target: 갈린조각(".journey-card") });
+  assert.equal(얹힌.maps.length, 1, "경로가 갈리면 그린다");
+  console.log("MAP-G11 OK");
 });
