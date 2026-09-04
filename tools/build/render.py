@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import json
 from html import escape
+from urllib.parse import quote
 
 from .branches import Pair
 from .load import Route
 from .notes import Note
 from .route_card import Card, Choice, Key, NO_REPLACEMENT
 from .route_geometry import Geometry
+from .headway import JSON_NAME as HEADWAY_JSON  # noqa: F401  — 자리 표시가 같은 파일에서 온다
 from .route_list import Row
 from .shell import RESULT_ID, page as shell_page
 from .stop_match import ADDED, DROPPED, KEPT, Line
@@ -236,6 +238,23 @@ def _stop_list(title: str, stops: tuple[str, ...]) -> list[str]:
     ]
 
 
+# 배차간격은 카드가 뜬 뒤에 Worker가 채운다 — 값이 표에 박힌 것이 아니라 부를 때 추론하는 것이라
+# (ADR-0010) 정적 조각에 미리 적을 수 없다. 자리와 그동안 보일 말만 여기서 적는다
+HEADWAY_LOADING = "계산중…"
+
+
+def _headway_slot(number: str) -> str:
+    """개편 후 노선 하나의 배차간격 자리. htmx가 조각을 받아 이 칸을 통째로 바꾼다.
+
+    Worker가 없거나 못 답하면 「계산중…」이 남는다 — 틀린 수를 보이는 것보다 낫다.
+    """
+    return (
+        f'<span class="headway" data-state="계산중"'
+        f' hx-get="/headway/{quote(number, safe="")}"'
+        f' hx-trigger="load" hx-swap="outerHTML">{HEADWAY_LOADING}</span>'
+    )
+
+
 def route_change_card(card: Card, table: str) -> str:
     """노선 변화 카드 조각 하나. 표 자리에는 기본 방면·첫 대체 노선의 표가 미리 들어간다.
 
@@ -261,7 +280,8 @@ def route_change_card(card: Card, table: str) -> str:
     out.append('<ul class="replaced">')
     out += [
         f'<li><span class="name">{escape(r.number)}</span>'
-        f' <span class="ends">({_ends(r.origin, r.terminus)})</span></li>'
+        f' <span class="ends">({_ends(r.origin, r.terminus)})</span>'
+        f" {_headway_slot(r.number)}</li>"
         for r in card.replaced
     ]
     out.append("</ul>")

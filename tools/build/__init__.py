@@ -17,8 +17,8 @@ from pathlib import Path
 
 # `build`의 셋째 인자 이름이 `bundle`이라 모듈은 별칭으로 받는다(진입점 모양은 이슈 #23이 정했다)
 from . import (
-    branches, bundle as bundle_json, load, notes, rename_dict, render, route_card, route_geometry,
-    route_list, shell, stop_match, terminus_align,
+    branches, bundle as bundle_json, headway, load, notes, rename_dict, render, route_card,
+    route_geometry, route_list, shell, stop_match, terminus_align,
 )
 from .errors import BuildError
 
@@ -38,6 +38,7 @@ class Result:
     bundle_counts: bundle_json.Counts
     map_stops: int      # 노선 지도에 찍은 점(표마다 세어 더한 것)
     map_missing: int    # 좌표가 없어 못 찍은 정류장 — 사이트 전체에서 **이름 몇 개**인지
+    estimate: headway.Estimate   # 개편 후 배차간격 추정(ADR-0009). 명령줄이 수치를 찍는다
 
 
 def _align_table_path(source: Path, given: Path | None) -> Path:
@@ -91,6 +92,7 @@ def build(
     facts = notes.collect(renames, load.read_removals(source), additions)
     stops = load.read_stops(source)
     canon = load.read_name_canon(_canon_path(source))
+    headways = headway.read_headways(source)
 
     pairs, missing = branches.pairs(before, after, replacements)
     if missing:
@@ -103,6 +105,8 @@ def build(
     made = bundle_json.make(before, after, stops, canon, renames, additions)
     # 노선 지도는 번들과 같은 이름 잇기를 쓴다. 다만 추정 좌표는 안 받는다(ADR-0007, `route_geometry`)
     index = bundle_json.stop_index(stops, canon, renames)
+    # 배차간격 추정도 `out/`을 지우기 전에 끝내 둔다 — 원천이 어긋나면 지난번 조각을 남긴 채 멈춘다
+    estimated = headway.estimate(before, after, replacements, headways, index, renames)
 
     table = terminus_align.read_table(_align_table_path(source, align_table))
     alignments, unwritten = terminus_align.align(pairs, table)
@@ -147,11 +151,15 @@ def build(
         shutil.copyfile(asset, out / asset.name)
 
     written = bundle_json.write(bundle_path, made)
+    # 배차간격 표는 번들과 따로 둔다 — 2MB짜리 번들과 달리 100KB가 안 되고, 정적 자산으로도
+    # 나가야 LLM이 주소 하나로 통째로 받아 갈 수 있다(ADR-0009 결정 4)
+    headway_text = headway.write(bundle_path.parent / headway.JSON_NAME, estimated)
+    (out / headway.JSON_NAME).write_text(headway_text, encoding="utf-8")
 
     return Result(
         out=out, tables=len(pairs), cards=len(cards), stages=stages,
         bundle=bundle_path, bundle_bytes=written, bundle_counts=made.counts,
-        map_stops=map_stops, map_missing=len(map_undrawn),
+        map_stops=map_stops, map_missing=len(map_undrawn), estimate=estimated,
     )
 
 
