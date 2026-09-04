@@ -102,7 +102,10 @@ test("「다른 경로 더 보기」는 카드 밖에 서고 펴고 접힌다", 
     const 카드만 = (글.match(
       new RegExp(`<article[^>]*data-network="${노선망}"[^]*?</article>`),
     ) ?? [""])[0];
-    assert.ok(!카드만.includes("<details"), `${노선망} — 다른 경로가 카드 안에 있다`);
+    // **「다른 경로」**만 카드 밖이어야 한다. 배차간격 옆 「?」(`details.why`)는 카드 안이
+    // 맞다 — 그 줄을 설명하는 것이라 그 줄 곁에 있어야 한다. 펼쳤을 때 옆 카드가 따라 늘어나는
+    // 것은 `.compare { align-items: start }`가 막는다
+    assert.ok(!카드만.includes('class="alternatives"'), `${노선망} — 다른 경로가 카드 안에 있다`);
     assert.match(
       글,
       new RegExp(`</article><details class="alternatives" id="more-${노선망}"`),
@@ -111,12 +114,23 @@ test("「다른 경로 더 보기」는 카드 밖에 서고 펴고 접힌다", 
 
     // 펴고 접는 일은 `<details>` 몫이라 우리 스크립트가 없다(ADR-0001). 조각은 처음 펼 때 한 번만
     // 부르고(`toggle once`), 그 뒤 접었다 펴는 것은 다시 받아 오지 않는다
+    // 카드 안에는 방아쇠가 두 종류다 — 다른 경로(`#more-…`)와 배차간격 옆 「?」(`closest details`).
+    // 둘을 갈라 센다. 안 가르면 하나가 늘 때 다른 하나의 검사가 조용히 무너진다
     const 방아쇠 = [...카드(글, 노선망).matchAll(/hx-trigger="([^"]*)"/g)].map((m) => m[1]);
-    assert.equal(방아쇠.length, ALTERNATIVE_JOURNEYS, 노선망);
+    const 다른경로 = 방아쇠.filter((t) => t.includes(`#more-${노선망}`));
+    assert.equal(다른경로.length, ALTERNATIVE_JOURNEYS, 노선망);
     assert.ok(
-      방아쇠.every((t) => t === `toggle once from:#more-${노선망}`),
-      `${노선망} — ${방아쇠.join(" / ")}`,
+      다른경로.every((t) => t === `toggle once from:#more-${노선망}`),
+      `${노선망} — ${다른경로.join(" / ")}`,
     );
+    // 「?」도 처음 펼 때 한 번만 부른다 — 접었다 펴는 것마다 부르면 돈이 든다
+    const 까닭 = 방아쇠.filter((t) => t.includes("closest details"));
+    assert.ok(
+      까닭.every((t) => t === "toggle once from:closest details"),
+      `${노선망} — ${까닭.join(" / ")}`,
+    );
+    if (노선망 === "after") assert.ok(까닭.length > 0, "개편 후 추정값에는 「?」가 붙는다");
+    else assert.equal(까닭.length, 0, "개편 전 공표값에는 「?」가 없다");
   }
 });
 
@@ -221,7 +235,7 @@ test("다른 경로 카드에도 예상 시간과 도보 합계가 적힌다", a
   const 복원 = await 다른_경로(경로_키(카드(await 비교(), "after"))[1]);
   assert.match(지표(복원, "예상 시간"), /^\d+분$/, 복원);
   assert.match(지표(복원, "도보 합계"), /^\d+m$/, 복원);
-  assert.match(복원, /배차간격 약 [\d.]+분\(추정\) · \d+개 정류장/, "배차간격은 경로 줄의 노선 자리에 있다");
+  assert.match(복원, /배차간격 약 \d+분<details class="why">/, "배차간격은 경로 줄의 노선 자리에 있다");
 });
 
 test("응답에 옛 용어가 없다", async () => {
