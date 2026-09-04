@@ -1,0 +1,29 @@
+# Worker 로컬 비밀 (ADR-0005 · ADR-0010). 이 파일은 .gitignore에 있어 커밋되지 않는다.
+#
+# 배차간격 칸을 추론값으로 바꾸려면 **둘 중 가진 것 하나**의 오른쪽만 진짜 키로 바꾼다.
+# 나머지 한 줄은 자리 값 그대로 두면 된다 — 자리 값은 「키 없음」으로 읽는다.
+#
+#   1) 키를 아래 알맞은 줄에 붙여 넣는다 (따옴표 없이, 앞뒤 공백 없이)
+#   2) node tools/check_key.mjs   ← 어느 제공자 키인지만 알려 준다. 키는 안 찍는다
+#   3) node tools/measure_infer.mjs  ← 진짜로 불러 흔들림과 돈을 잰다 (돈이 든다)
+#
+# 배포에는 이 파일이 안 올라간다. 그쪽은 `npx wrangler secret put <이름>`.
+
+# Anthropic (Claude). sk-ant-… 로 시작한다
+ANTHROPIC_API_KEY=sk-ant-여기에_키_붙여넣기
+
+# OpenAI (Codex 포함). sk-proj-… 또는 sk-… 로 시작한다
+OPENAI_API_KEY=sk-proj-여기에_키_붙여넣기
+
+# 사내·대행 게이트웨이를 쓴다면 그 주소. 비워 두면 api.openai.com으로 간다
+# MODEL_BASE_URL=https://
+
+# 쓸 모형. 비우면 코드 기본값. `node tools/check_key.mjs --live`가 쓸 수 있는 목록을 낸다
+# MODEL_NAME=
+
+# 백만 토큰당 값($). 적으면 실측이 돈까지 셈해 준다. 안 적으면 토큰 수만 낸다
+# PRICE_IN=
+# PRICE_OUT=
+
+# Google Gemini. AIza… 로 시작한다
+GEMINI_API_KEY=AIza여기에_키_붙여넣기

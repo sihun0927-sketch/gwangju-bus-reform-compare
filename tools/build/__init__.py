@@ -18,8 +18,8 @@ from pathlib import Path
 
 # `build`의 셋째 인자 이름이 `bundle`이라 모듈은 별칭으로 받는다(진입점 모양은 이슈 #23이 정했다)
 from . import (
-    branches, bundle as bundle_json, load, notes, rename_dict, render, route_card, route_geometry,
-    route_list, shell, stop_match, terminus_align,
+    branches, bundle as bundle_json, headway, load, notes, rename_dict, render, route_card,
+    route_geometry, route_list, shell, stop_match, terminus_align,
 )
 from .errors import BuildError
 
@@ -39,6 +39,7 @@ class Result:
     bundle_counts: bundle_json.Counts
     map_stops: int      # 노선 지도에 찍은 점(표마다 세어 더한 것)
     map_missing: int    # 좌표가 없어 못 찍은 정류장 — 사이트 전체에서 **이름 몇 개**인지
+    estimate: headway.Estimate   # 개편 후 배차간격 추정(ADR-0010). 명령줄이 수치를 찍는다
 
 
 def _align_table_path(source: Path, given: Path | None) -> Path:
@@ -93,6 +94,12 @@ def build(
     stops = load.read_stops(source)
     canon = load.read_name_canon(_canon_path(source))
     headways = load.read_headways(source)
+    # 배차간격 원천이 지금 **둘**이다. `load.read_headways`가 읽는 것은 개편 전 110행이라
+    # 순환01이 없고(그 노선은 화면에 「정보 없음」), 추정은 111행을 다 알아야 유효 운행시간을
+    # 풀 수 있어 순환01A·B가 든 `route_headways.csv`(120행)를 따로 읽는다.
+    # **하나로 합치는 것이 맞다** — 뒤엣것이 앞엣것을 덮으므로 옮기면 순환01 구멍도 메워진다.
+    # 다만 그것은 화면의 「정보 없음」 한 줄을 바꾸는 일이라 이 PR에서 하지 않는다(ADR-0010 남은 일)
+    headways_full = headway.read_headways(source)
 
     pairs, missing = branches.pairs(before, after, replacements)
     if missing:
@@ -107,6 +114,8 @@ def build(
     index = bundle_json.stop_index(stops, canon, renames)
     # 지도의 선은 정류장 직선이 아니라 차도 경로다(ADR-0009). 없으면 빈 표이고 직선으로 돌아간다
     shapes = load.read_shapes(source)
+    # 배차간격 추정도 `out/`을 지우기 전에 끝내 둔다 — 원천이 어긋나면 지난번 조각을 남긴 채 멈춘다
+    estimated = headway.estimate(before, after, replacements, headways_full, index, renames)
 
     table = terminus_align.read_table(_align_table_path(source, align_table))
     alignments, unwritten = terminus_align.align(pairs, table)
@@ -152,11 +161,15 @@ def build(
     _write_shapes(out, shapes)
 
     written = bundle_json.write(bundle_path, made)
+    # 배차간격 표는 번들과 따로 둔다 — 2MB짜리 번들과 달리 100KB가 안 되고, 정적 자산으로도
+    # 나가야 LLM이 주소 하나로 통째로 받아 갈 수 있다(ADR-0010 결정 4)
+    headway_text = headway.write(bundle_path.parent / headway.JSON_NAME, estimated)
+    (out / headway.JSON_NAME).write_text(headway_text, encoding="utf-8")
 
     return Result(
         out=out, tables=len(pairs), cards=len(cards), stages=stages,
         bundle=bundle_path, bundle_bytes=written, bundle_counts=made.counts,
-        map_stops=map_stops, map_missing=len(map_undrawn),
+        map_stops=map_stops, map_missing=len(map_undrawn), estimate=estimated,
     )
 
 

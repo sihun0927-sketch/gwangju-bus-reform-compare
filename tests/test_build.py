@@ -24,6 +24,9 @@ from tools.build import BuildError, build
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 SOURCE = DATA / "source"
+
+# 카드가 Worker에게 배차간격을 물으러 가는 주소의 앞머리(ADR-0011)
+HEADWAY_PREFIX = "/headway/"
 # 껍데기의 <script> 태그. 여는 태그만 센다
 SCRIPT_TAG = r"<script\b[^>]*>"
 ALIGN_TABLE = DATA / "기종점정렬표.csv"
@@ -464,14 +467,51 @@ def test_대체_노선이_없는_번호의_카드에는_표도_버튼도_없다(
 
 
 def test_카드가_가리키는_조각_주소에_파일이_다_있다(site: Path) -> None:
+    """카드의 `hx-get`은 두 갈래다 — 정적 조각과 Worker 경로. 갈래마다 다른 것을 본다.
+
+    표 조각(`route/…`)은 빌드가 쓴 **파일**이라 파일이 있어야 하고, 배차간격(`/headway/…`)은
+    Worker가 그때 만드는 **경로**라 파일이 없다(ADR-0011). 그쪽은 가리키는 노선이 배차간격 표에
+    실제로 있는지를 본다 — 없는 번호를 가리키면 카드에 「계산중…」이 영영 남는다.
+    """
+    import json
+    from urllib.parse import unquote
+
+    노선 = json.loads((site / "headway.json").read_text(encoding="utf-8"))["노선"]
     버튼_없는_카드 = []
+    배차_자리 = 0
     for path in site.glob("route/*.html"):
         주소 = re.findall(r'hx-get="([^"]+)"', path.read_text(encoding="utf-8"))
         if not 주소:
             버튼_없는_카드.append(path.stem)
         for url in 주소:
+            if url.startswith(HEADWAY_PREFIX):
+                이름 = unquote(url[len(HEADWAY_PREFIX):])
+                assert 이름 in 노선, f"{path.name} → {url} (배차간격 표에 없는 노선)"
+                배차_자리 += 1
+                continue
             assert (site / url).exists(), f"{path.name} → {url}"
     assert 버튼_없는_카드 == ["두암181"]   # 고를 것이 없는 번호는 이 하나뿐이다
+    assert 배차_자리 > 0, "배차간격 자리가 하나도 없다"
+
+
+def test_배차간격_주소만_Worker로_간다(site: Path) -> None:
+    """정적 자산으로 나가는 주소와 Worker가 받는 주소가 섞이면 배포 설정이 조용히 어긋난다.
+
+    `wrangler.jsonc`의 `run_worker_first`에 적힌 것만 Worker가 받는다. 카드가 그 밖의 절대 경로를
+    가리키면 정적 자산 쪽으로 가서 404가 된다.
+    """
+    import json
+
+    무늬 = json.loads(
+        re.sub(r"^\s*//.*$", "", (ROOT / "wrangler.jsonc").read_text(encoding="utf-8"), flags=re.M)
+    )["assets"]["run_worker_first"]
+    for path in site.glob("route/*.html"):
+        for url in re.findall(r'hx-get="([^"]+)"', path.read_text(encoding="utf-8")):
+            if not url.startswith("/"):
+                continue   # 표 조각은 상대 경로다
+            assert any(
+                url.startswith(p[:-1]) if p.endswith("*") else url == p for p in 무늬
+            ), f"{path.name} → {url} 은 Worker가 안 받는다"
 
 
 def test_화면_문구에_옛_용어가_없다(site: Path) -> None:
