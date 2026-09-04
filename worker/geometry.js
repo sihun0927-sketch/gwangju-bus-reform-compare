@@ -2,11 +2,12 @@
  * 경로 지도 좌표 — 경로 하나를 점 목록으로 편다 (CONTEXT 「경로 지도」).
  *
  * 그리는 것은 브라우저 `map` 스크립트이고(htmx는 지도를 못 그린다, ADR-0001), 여기서는 조각에
- * 실을 좌표만 만든다. 도로 형상은 따르지 않는다 — 정류장을 차례대로 직선으로 잇는다(스펙 Out of Scope).
+ * 실을 좌표만 만든다. 점은 정류장 좌표이고, **선은 `map`이 노선 형상 파일을 받아 그린다**
+ * (ADR-0009). 여기서는 구간마다 그 형상의 열쇠만 적는다 — 형상을 못 받으면 이 점들을 직선으로 잇는다.
  *
  * 만드는 모습:
  *
- *     { network, from: {lat,lng}, to: {lat,lng}, legs: [[{lat,lng,name}]] }
+ *     { network, from: {lat,lng}, to: {lat,lng}, legs: [[{lat,lng,name}]], shapes: [열쇠] }
  *
  * `legs`는 구간마다 하나, 그 안은 승차부터 하차까지 **지나는 정류장 전부**다. 카드에 적힌
  * 「정류장 N곳」이 구간의 순번 차이이므로 점은 구간마다 N+1개가 된다.
@@ -39,7 +40,12 @@ export function geometry(network, journey, from, to) {
     });
     return 점들;
   });
-  return { network: network.key, from: 지점(from), to: 지점(to), legs };
+  /* 구간마다 노선 형상의 열쇠 하나. 좌표는 안 싣는다 — 형상 파일은 `map`이 따로 받아 자른다
+     (ADR-0009 결정 4). 열쇠 꼴은 `tools/build/load.py`의 `shape_key`와 같아야 한다 */
+  const shapes = journey.legs.map(
+    (leg) => `${network.key}|${network.routeName(leg.route)}|${leg.side}`,
+  );
+  return { network: network.key, from: 지점(from), to: 지점(to), legs, shapes };
 }
 
 /** 자리 하나에 선 줄 여럿 중 앞 점에 가장 가까운 것. 좌표 있는 줄이 없으면 `null`. */

@@ -119,6 +119,7 @@ const 개편전 = {
     { lat: 35.111, lng: 126.811, name: "나정류장" },
     { lat: 35.121, lng: 126.821, name: "다정류장" },
   ]],
+  shapes: ["before|가노선|up"],
 };
 /* 개편 후 경로 — 승차가 개편 전의 하차와 **같은 자리**다. 그 점이 색 둘로 겹쳐야 한다 */
 const 개편후 = {
@@ -129,6 +130,7 @@ const 개편후 = {
     { lat: 35.121, lng: 126.821, name: "다정류장" },
     { lat: 35.129, lng: 126.829, name: "라정류장" },
   ]],
+  shapes: ["after|나노선|up"],
 };
 
 const 노선표 = {
@@ -264,3 +266,37 @@ const 칸 = (것) => Array.from(것);
 function point키(점) {
   return 점.lat.toFixed(6) + "," + 점.lng.toFixed(6);
 }
+
+/* 노선 한 바퀴의 차도 경로. 승차·하차 정류장 근처를 지나가되 정확히 밟지는 않는다 */
+const 가노선_형상 = [
+  { lat: 35.090, lng: 126.790 },   // 승차보다 앞 — 잘려 나가야 한다
+  { lat: 35.1012, lng: 126.8012 }, // 가정류장 곁
+  { lat: 35.1055, lng: 126.8060 }, // 도로만 아는 굽이
+  { lat: 35.1112, lng: 126.8113 }, // 나정류장 곁
+  { lat: 35.1180, lng: 126.8180 }, // 도로만 아는 굽이
+  { lat: 35.1213, lng: 126.8213 }, // 다정류장 곁
+  { lat: 35.140, lng: 126.840 },   // 하차보다 뒤 — 잘려 나가야 한다
+];
+
+test("형상을 받으면 선이 도로를 타고, 못 받으면 정류장 직선이다", () => {
+  const { busMap } = 싣는다();
+
+  const 직선 = busMap.journey([개편전]);
+  const 버스_직선 = 직선.paths.find((선) => 선.style === "shortdash");
+  assert.equal(버스_직선.points.length, 3, "형상이 없으면 정류장 셋을 그대로 잇는다");
+
+  const 도로 = busMap.journey([개편전], { "before|가노선|up": 가노선_형상 });
+  const 버스_도로 = 도로.paths.find((선) => 선.style === "shortdash");
+  const 점들 = 칸(버스_도로.points);
+  assert.equal(점들.length, 7, "승차 + 자른 형상 다섯 + 하차");
+  assert.deepEqual({ ...점들[0] }, { lat: 35.101, lng: 126.801, name: "가정류장" },
+    "선은 승차 정류장에서 시작한다");
+  assert.equal(점들[점들.length - 1].name, "다정류장", "그리고 하차 정류장에서 끝난다");
+  assert.ok(점들.some((점) => 점.lat === 35.1180), "도로만 아는 굽이가 들어온다");
+  assert.ok(!점들.some((점) => 점.lat === 35.090), "승차 앞 구간은 잘려 나간다");
+  assert.ok(!점들.some((점) => 점.lat === 35.140), "하차 뒤 구간도 잘려 나간다");
+
+  // 점은 형상이 있든 없든 정류장 좌표 그대로다 — 점은 사실, 선은 추정(ADR-0009)
+  assert.equal(도로.markers.length, 직선.markers.length);
+  console.log("MAP-G10 OK");
+});
